@@ -1,0 +1,34 @@
+HURRICANE HELENE — QUICK START
+
+Open Stata and change to the repository root:
+    cd "~/Downloads/Helene_Definitive_Joint_Research"
+
+Full source-to-results run:
+    do "run_all.do"
+
+Re-estimate using the existing generated panel:
+    do "rerun_estimation_only.do"
+
+Refresh readable results and all presentation figures only:
+    do "run_report_only.do"
+
+Install reporting dependencies in your chosen Python:
+    python3 -m pip install -r src/reporting/requirements.txt
+Set H_PYTHON in config.local.do if Stata selects another interpreter.
+
+READ:
+    README.md
+    METHODOLOGY.md
+    outputs/README.md
+
+RESULTS:
+    outputs/reports/HELENE_COMPLETE_RESULTS.txt
+    outputs/reports/HELENE_GRAPH_ATLAS.pdf
+    outputs/reports/graphs/index.html
+
+AUDIT:
+    outputs/audit/STAGE_STATUS.csv
+    outputs/audit/SOURCE_BUILD_AUDIT.txt
+
+Keep config.local.do private. Source snapshots stay in data/raw/.
+Archived material is not executed by the current workflow.

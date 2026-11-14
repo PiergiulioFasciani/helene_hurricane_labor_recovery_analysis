@@ -1,0 +1,17 @@
+# Stable cross-platform source checksums.
+* text=auto
+*.do text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.csv text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+.gitignore text eol=lf
+.gitkeep text eol=lf
+*.png binary
+*.pdf binary
+*.dta binary
+*.ster binary
+*.gph binary

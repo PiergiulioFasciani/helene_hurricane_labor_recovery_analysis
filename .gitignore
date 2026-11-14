@@ -1,0 +1,36 @@
+# Local settings and credentials
+config.local.do
+**/config.local.do
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Generated datasets and reports: retain folders via .gitkeep only.
+/data/**
+!/data/**/
+!/data/**/.gitkeep
+/outputs/**
+!/outputs/**/
+!/outputs/**/.gitkeep
+!/outputs/README.md
+
+# Historical working material stays local; publish its index only.
+/archive/**
+!/archive/README.md
+
+# OS, Python, Stata and local packaging artifacts
+.DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.dta
+*.ster
+*.gph
+*.smcl
+*.log
+*.zip
+/work/
