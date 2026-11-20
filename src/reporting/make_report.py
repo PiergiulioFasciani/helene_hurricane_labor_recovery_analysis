@@ -37,9 +37,10 @@ def main(root=ROOT):
     def table(n): return read('outputs/labor/tables/'+n+'.csv','joint_multioutcome')
     effects=table('period_effects_WITH_HOLM'); paths=table('monthly_paths'); fit=table('pretrend_train_holdout_ALL')
     trends=table('twfe_pretrend_tests'); events=table('event_coefficients'); weights=table('donor_weights')
-    cv=table('inner_2023_cv'); solver=table('solver_audit'); scales=table('training_2022_scales'); times=table('pre2024_time_placebos')
+    cv=table('inner_2023_cv'); solver=table('solver_audit'); scales=table('training_2022_scales')
     ext=table('LAUS_extended_period_effects_EXPLORATORY'); extev=table('LAUS_extended_event_coefficients_EXPLORATORY'); extpre=table('LAUS_extended_pretrends')
-    curves=table('gaussian_rebased_curves'); county=table('kernel_county_windows'); slopes=table('kernel_dose_slopes')
+    migdose=read('outputs/migration/migration_by_damage.csv','migration_by_damage')
+    dev=table('dose_event_coefficients'); dper=table('dose_period_effects'); dpre=table('dose_pretrend_tests'); dexp=table('dose_treated_exposure')
     draws=read('outputs/labor/placebos/joint_placebo_draws.csv','joint_placebos')
     ranks=read('outputs/labor/placebos/joint_placebo_summary.csv','joint_placebos')
     migration=read('outputs/migration/census_annual_effects.csv','census_annual_migration')
@@ -66,9 +67,9 @@ def main(root=ROOT):
             add(f"  {label(r.outcome)}: {r.display_beta:+.2f} {'pp' if key(r.outcome)=='urate' else 'log-%'}; 95% CI [{r.display_lo:.2f}, {r.display_hi:.2f}]; Holm p={r.holm_p:.3f}.")
     if not trends.empty:
         k=len(trends)
-        add(f'PRE-EVENT CHECK (weights are fitted on this window, so it is in-sample): linear pre-trend test rejects at 5% for {int((trends.slope_p<.05).sum())}/{k} outcomes; '
-            f'half-year-bin test for {int((trends.bin_p<.05).sum())}/{k}; {int(trends.n_sig05.sum())} of {32*k} monthly pre-event coefficients are individually significant.',
-            f'Stricter joint tests: last eight pre-event months reject for {int((trends.last8_p<.05).sum())}/{k} outcomes; all 31 monthly coefficients for {int((trends.pretrend_p<.05).sum())}/{k}.',
+        add(f'PRE-EVENT CHECK (weights are fitted on this window, so it is in-sample): the linear pre-trend test rejects at 5% for {int((trends.slope_p<.05).sum())}/{k} outcomes, '
+            f'and {int(trends.n_sig05.sum())} of {32*k} monthly pre-event coefficients are individually significant.',
+            f'The strict joint test of all 31 monthly coefficients rejects for {int((trends.pretrend_p<.05).sum())}/{k} outcomes.',
             'Surface parallelism (no drift, no visible gap) is not proof of parallel trends: the strict joint tests still detect small month-specific deviations.')
     if not fit.empty:
         add(f'OUT-OF-SAMPLE CHECK (weights refitted on 2022–23 only, then predicting Jan–Aug 2024): error is more than twice the training error for {int((fit.bd_rmspe_ratio>2).sum())}/{len(fit)} outcomes.')
@@ -101,24 +102,23 @@ def main(root=ROOT):
         d=effects.copy();d['Outcome']=d.outcome.map(label);d['Period']=d.window.map(WINDOWS)
         tab(d,['Outcome','Period','display_beta','display_lo','display_hi','pvalue','holm_p'],{'display_beta':'Estimate','display_lo':'CI low','display_hi':'CI high','pvalue':'Raw p','holm_p':'Holm p'})
     else: add('Unavailable for this run.')
-    section('Validation — pre-event fit and what it does not show')
+    section('Validation')
+    add('Three checks, each perturbing something the weights did not see. Full diagnostics remain in the saved tables.')
     if not fit.empty:
         d=fit.copy();d['Outcome']=d.outcome.map(label)
-        add('(a) Definitive weights, in-sample pre-event gap (log-%; unemployment rate in pp):')
-        tab(d,['Outcome','fit_rmse','fit_rmse_2022_23','fit_rmse_2024','fit_max_abs_gap'],{'fit_rmse':'RMSE Jan22–Aug24','fit_rmse_2022_23':'RMSE 2022–23','fit_rmse_2024':'RMSE Jan–Aug24','fit_max_abs_gap':'Largest monthly gap'})
-        add('(b) Backdated weights (fitted on 2022–23 only), out-of-sample Jan–Aug 2024:')
-        tab(d,['Outcome','bd_train_rmse','bd_holdout_rmse','bd_rmspe_ratio','bd_aug2024_gap','bd_holdout_slope_p'],{'bd_train_rmse':'Train RMSE','bd_holdout_rmse':'Holdout RMSE','bd_rmspe_ratio':'Ratio','bd_aug2024_gap':'Aug 2024 gap','bd_holdout_slope_p':'Holdout slope p'})
-        add('RMSE is average mismatch in outcome units; smaller is better.',
-            'Table (a) is flat partly by construction. Table (b) is the honest forecast test: a ratio well above 1 means',
-            'donors chosen on 2022–23 did not predict the treated counties in 2024, so the flat fit in (a) relies on 2024 being in the fit window.')
+        add('1. OUT-OF-SAMPLE. Weights refitted on 2022-23 only, then predicting Jan-Aug 2024, which they never saw:')
+        tab(d,['Outcome','bd_train_rmse','bd_holdout_rmse','bd_rmspe_ratio'],{'bd_train_rmse':'Train RMSE','bd_holdout_rmse':'Forecast RMSE','bd_rmspe_ratio':'Ratio'})
+        add('A ratio near 1 would mean donors chosen on two years kept tracking the treated counties in the third.',
+            'They did not for the two LAUS outcomes. This is the main caveat of the design and is stated first deliberately.')
     if not trends.empty:
         d=trends.copy();d['Outcome']=d.outcome.map(label)
-        f=np.where(d.outcome.map(key)=='urate',1,100);d['pre_rmse']=d.pre_rmse*f;d['max_abs_pre']=d.max_abs_pre*f
-        add('(c) Event-study pre-event tests, definitive weights (county-clustered):')
-        tab(d,['Outcome','slope_p','bin_p','n_sig05','max_abs_t','pre_rmse','max_abs_pre','last8_p','pretrend_p'],{'slope_p':'Linear trend p','bin_p':'Half-year bins p','n_sig05':'Months p<.05 (of 32)','max_abs_t':'Largest |t|','pre_rmse':'Pre RMSE','max_abs_pre':'Largest pre coef','last8_p':'Jan–Jul24 vs Aug24 p','pretrend_p':'All 31 months p'})
-        add('Linear-trend and bin tests ask whether the pre-event gap drifts; they have limited power with 39 treated counties.',
-            'The last two columns are strict joint tests of exact month-by-month equality; small p-values there mean small but',
-            'precisely estimated month-specific deviations remain. Compare their size (Pre RMSE, largest coefficient) with the effects.')
+        add('2. PRE-EVENT PATH. Drift tests on the definitive weights (county-clustered):')
+        f=np.where(d.outcome.map(key)=='urate',1,100);d['max_abs_pre']=d.max_abs_pre*f
+        tab(d,['Outcome','slope_p','pretrend_p','n_sig05','max_abs_pre'],{'slope_p':'Linear trend p','pretrend_p':'All 31 months p','n_sig05':'Months p<.05 (of 32)','max_abs_pre':'Largest pre coef'})
+        add('The weights are fitted on this window, so flatness here is in-sample and is not evidence on its own.',
+            'The drift test asks whether the gap trends; the strict joint test asks whether it is exactly zero every month.',
+            'The latter rejects for every outcome, at deviations an order of magnitude below the estimated effects: compare the last column.')
+    add('3. GEOGRAPHIC PLACEBO: see the placebo section below.')
     section('Donor model and tuning')
     tab(solver,['lambda','cv2023_rmse','iterations','dual_gap','n_active','effective_donors','bd_n_active','bd_effective_donors'])
     add('cv2023_rmse: penalty selection only (fit 2022, predict 2023). bd_ columns: backdated diagnostic weights.')
@@ -134,6 +134,24 @@ def main(root=ROOT):
         tab(d,['Outcome','screen','observed_shock','n_placebos','left_rank','right_rank'],{'right_rank':'Two-sided rank','left_rank':'Lower-tail rank'})
     add('Observed shock = Oct–Dec 2024 average gap minus the pre-event (Jan 2022–Aug 2024) mean gap; placebo groups are fitted the same way.',
         'Ranks use a +1 correction. Fit screens compare joint pre-fit errors; they do not establish exchangeable treatment assignment.')
+    section('Effects by damage tercile')
+    add('The 39 treated counties are split into terciles of storm exposure; each tercile is compared with the same synthetic control.',
+        'Sample, weights, fixed effects, clustering and the pre-event-mean reference are identical to the main event study.',
+        'HDSI (composite damage index) is primary; six-day rainfall alone is reported as a robustness comparison.',
+        'Exposure is not randomly assigned across treated counties, so these are comparisons of differently exposed groups, not a randomised dose.')
+    if not dper.empty:
+        for fam,nm in [('hdsi_tercile','HDSI terciles (primary)'),('rain_tercile','Rainfall terciles (robustness)')]:
+            f=dper[dper.dose==fam].copy()
+            if f.empty: continue
+            f['Outcome']=f.outcome.map(label);f['Period']=f.window.map(WINDOWS)
+            f['Group']=f.term.map({'low':'low','mid':'mid','high':'high','high_minus_low':'high - low'})
+            add('',nm+':')
+            tab(f.sort_values(['outcome','window','term']),['Outcome','Period','Group','display_beta','display_lo','display_hi','pvalue'],{'display_beta':'Estimate','display_lo':'CI low','display_hi':'CI high','pvalue':'Raw p'})
+    if not dpre.empty:
+        d=dpre[dpre.dose=='hdsi_tercile'].copy();d['Outcome']=d.outcome.map(label)
+        add('Pre-event tests within each HDSI tercile:')
+        tab(d.sort_values(['outcome','term']),['Outcome','term','slope_p','n_sig05','max_abs_pre'],{'term':'Tercile','slope_p':'Linear trend p','n_sig05':'Months p<.05 (of 32)','max_abs_pre':'Largest pre coef'})
+        add('A null in the least-damaged tercile at every horizon is a within-treatment placebo: those counties are FEMA-positive but barely hit.')
     section('Exploratory labor extension — through September 2026')
     if not ext.empty:
         d=ext.copy(); factor=np.where(d.outcome.map(key)=='urate',1,100)
@@ -141,31 +159,40 @@ def main(root=ROOT):
         d['Outcome']=d.outcome.map(label);d['Period']=d.window.map(WINDOWS)
         tab(d,['Outcome','Period','beta','lower95','upper95','pvalue'])
     if not extpre.empty:
-        d=extpre.copy();d['Outcome']=d.outcome.map(label);tab(d,['Outcome','slope_p','last8_p','pretrend_p'])
+        d=extpre.copy();d['Outcome']=d.outcome.map(label);tab(d,['Outcome','slope_p','pretrend_p'])
     add('Exploratory p-values are unadjusted and outside the 18-test main Holm family.')
-    section('Exploratory migration and population')
-    tab(migration,['outcome','b2025','lo95','hi95','p2025','pretest_p','N_counties'])
+    section('Migration and population by damage tercile')
     add('netdom_per1000: net domestic migrants per 1,000 residents. pop_growth_pct: population growth in percent; effect is a percentage-point difference.',
         '2025 is July 2024–July 2025, only partly after Helene. Reference is the annual period ending July 2024.',
-        'A negative net-migration contrast can mean fewer arrivals, more departures, or both; it does not count displaced original residents.')
+        'A negative contrast means slower net IN-migration, not population loss: see the levels table below before writing about this.',
+        'It can also mean fewer arrivals rather than more departures, and it does not count displaced original residents.')
+    add('Migration is reported as an OUTCOME of the same design, never as a control: it is realized after the storm,',
+        'so conditioning on it would be a bad control and would remove the channel under study.',
+        'Annual July-to-July frequency; county and year effects; 2024 is the omitted last unexposed year; clustered by county.',
+        'Two comparison schemes: unweighted eligible counties, and donors carrying the fitted labor synthetic-control weights.')
+    if not migdose.empty:
+        d=migdose.copy()
+        d['Scheme']=d.scheme.map({'unwt':'unweighted','syn':'synthetic'})
+        d['Outcome']=d.outcome.map({'netdom_per1000':'Net domestic migration per 1,000','pop_growth_pct':'Population growth (pp)'})
+        d['Group']=d.group.map({'all':'all 39','low':'low HDSI','mid':'mid HDSI','high':'high HDSI','hi-lo':'high minus low'})
+        syn=d[d.scheme=='syn']
+        tab(syn,['Outcome','Group','b2025','lower95','upper95','pvalue','pretest_p'],{'b2025':'2025 effect','lower95':'CI low','upper95':'CI high','pvalue':'Raw p','pretest_p':'Pre-test p'})
+        add('Donors carry the labor synthetic-control weights, so migration is comparable with the labor outcomes.',
+            'Pre-test p is the joint test of the 2021-2023 treated-by-year coefficients: small values mean the group was already',
+            'on a different path before the storm.')
+        u=d[d.scheme=='unwt']
+        if not u.empty:
+            hi=u[(u.group=='high')&(u.outcome=='netdom_per1000')]
+            lo=u[(u.group=='hi-lo')&(u.outcome=='netdom_per1000')]
+            if not hi.empty and not lo.empty:
+                add(f'Footnote: under an unweighted comparison of all eligible counties the high-damage estimate is '
+                    f'{hi.b2025.iloc[0]:.2f} (p={hi.pvalue.iloc[0]:.3f}) and the high-minus-low contrast {lo.b2025.iloc[0]:.2f} '
+                    f'(p={lo.pvalue.iloc[0]:.3f}); that scheme fails its pre-test for the two less-damaged terciles, which is why it is not the primary one.')
+    else: add('Unavailable for this run.')
     tab(groups,['year','grp','counties','mean_pop_growth_pct','mean_netdom_per1000'])
-    add('Group 1 = treated; group 0 = eligible comparison counties. These means are unweighted across counties.')
-    section('Exploratory rainfall and damage curves')
-    add('The atlas includes every exported outcome × window × exposure curve, with county points and 95% pointwise bootstrap bands.',
-        'These are within-treated-county associations, not causal dose-response estimates.',
-        'Immediate = Oct–Dec 2024; short = Jan–Sep 2025; medium = Nov 2025–Sep 2026, except workplace jobs end in March 2026.',
-        'HDSI is a composite damage index; rainfall is measured in millimetres. The shared synthetic baseline shifts levels, not exposure slopes.',
-        'Each county is measured against its own pre-event mean gap (Jan 2022–Aug 2024), not against August 2024 alone.',
-        'Placebo window: Jan–Aug 2024 against the county 2022–23 mean gap. A flat placebo curve is the pre-trend check for these curves.')
-    if not slopes.empty:
-        d=slopes.copy();d['Outcome']=d.outcome.map(label);d['Window']=d.window.map(WINDOWS)
-        add('Linear exposure gradient per one SD of exposure (HC3 standard errors):')
-        tab(d,['dose','Window','Outcome','n_counties','mean_change','slope_per_sd','se','pvalue'])
-        pl=d[d.window=='placebo']
-        add(f'Placebo gradients significant at 5%: {int((pl.pvalue<.05).sum())} of {len(pl)}. Compare their size with the post-event gradients.')
-    if not curves.empty:
-        d=curves.groupby(['dose','window','outcome'],sort=False).agg(counties=('n_counties','first'),bootstrap_draws=('n_boot','first'),min_effective_n=('effective_n','min'),max_effective_n=('effective_n','max')).reset_index()
-        tab(d,list(d.columns));add('Low effective sample sizes signal weak local support; bands are pointwise and not corrected for searching many curves.')
+    add('LEVELS, not effects: group 1 = treated, group 0 = eligible comparison counties; unweighted county means.',
+        'Net migration stays positive for the treated group throughout. The damaged counties attracted fewer new residents',
+        'than they otherwise would have; they did not depopulate, and the paper must not say they did.')
     section('What these results can and cannot support')
     add('The fitted comparisons describe relative post-event changes. The pre-event gap is now flat on the surface, but it is flat in-sample;',
         'the backdated out-of-sample check and the strict joint tests above remain the relevant cautions for a causal reading.',
@@ -192,13 +219,6 @@ def main(root=ROOT):
         def dateaxis(ax):
             import matplotlib.dates as md
             ax.xaxis.set_major_locator(md.MonthLocator(interval=12));ax.xaxis.set_major_formatter(md.DateFormatter('%b %Y'))
-        if not effects.empty:
-            fig,axes=figgrid('Main effects: six outcomes, three windows','Points and individual 95% confidence intervals; Holm correction applies to the 18 tests.',3,2)
-            for ax,o in zip(axes,['emp','lf','jobs','urate','diff','share']):
-                d=effects[effects.outcome.map(key)==o].set_index('window').reindex(['immediate','year2025','late'])
-                y=np.arange(3);b=d.display_beta.to_numpy();ax.errorbar(b,y,xerr=[b-d.display_lo,d.display_hi-b],fmt='o',color=BLUE,capsize=3)
-                ax.axvline(0,color=GRAY,lw=.8);ax.set_yticks(y,[WINDOWS[w] for w in d.index],fontsize=8);ax.invert_yaxis();ax.set(title=NAMES[o],xlabel=units(o))
-            save(fig,'01_main_effects','Intervals are not multiplicity-adjusted. See the readable report for every raw and Holm-adjusted p-value.')
         if not paths.empty:
             dates=paths.mdate.map(month)
             fig,axes=figgrid('Treated and synthetic-control paths','Four outcomes, centered on 2022 means; synthetic path includes the fitted intercept. Shading: 2024 months, now inside the fit window.')
@@ -208,6 +228,18 @@ def main(root=ROOT):
                 ax.axvspan(pd.Timestamp('2024-01-01'),pd.Timestamp('2024-08-31'),color=GRAY,alpha=.12);ax.axvline(pd.Timestamp('2024-09-01'),color=GRAY,ls=':');ax.set(title=NAMES[o],ylabel=units(o));dateaxis(ax)
             axes[0].legend(frameon=False,fontsize=8)
             save(fig,'02_monthly_paths','Missing observations remain gaps. The vertical dotted line marks September 2024.')
+        if not dev.empty:
+            for fam,title,slug in [('hdsi_tercile','Event study by HDSI tercile','03b_tercile_events_hdsi'),('rain_tercile','Event study by rainfall tercile','03c_tercile_events_rain')]:
+                if dev[dev.dose==fam].empty: continue
+                fig,axes=figgrid(title,'Each tercile is 13 treated counties, compared with the same synthetic control; relative to its own pre-event mean.',3,2)
+                for ax,o in zip(axes,['mc_yemp','mc_ylf','mc_yjobs','mc_yurate','mc_ydiff','mc_yshare']):
+                    f=1 if key(o)=='urate' else 100
+                    for term,col,lab_ in [('low',BLUE,'low'),('mid',GRAY,'mid'),('high',ORANGE,'high')]:
+                        dd=dev[(dev.dose==fam)&(dev.outcome==o)&(dev.term==term)].sort_values('event_month')
+                        ax.plot(dd.event_month,dd.beta*f,'-',lw=1.2,color=col,label=lab_)
+                    zero(ax);ax.axvline(0,color=GRAY,ls=':');ax.set(title=label(o),ylabel=units(o),xlabel='Months from September 2024')
+                axes[0].legend(fontsize=7,frameon=False,title='exposure tercile')
+                save(fig,slug,'Point estimates; intervals are in dose_event_coefficients.csv. Thirteen counties per series, so each is noisier than the pooled event study.')
         for ev,title,slug in [(events,'Main monthly event-study estimates','03_main_events'),(extev,'Exploratory monthly labor extension','10_extended_events')]:
             if ev.empty: continue
             outcomes=list(ev.outcome.unique());fig,axes=figgrid(title,'Relative to the pre-event mean (Jan 2022–Aug 2024). Points and individual 95% confidence intervals.',3,2)
@@ -218,29 +250,26 @@ def main(root=ROOT):
             for ax in axes[len(outcomes):]:ax.set_visible(False)
             save(fig,slug,'No point is imputed for excluded months. Pre-event coefficients average zero by construction. Exploratory extensions are not Holm-adjusted.')
         if not fit.empty:
-            fig,axes=figgrid('Validation before interpreting effects','In-sample pre-event fit, backdated out-of-sample forecast, and formal pre-event tests answer different questions.')
-            for ax,subset in zip(axes[:2],[fit[fit.outcome!='urate'],fit[fit.outcome=='urate']]):
-                x=np.arange(len(subset));ax.bar(x-.27,subset.fit_rmse_2024,.27,label='Definitive weights, Jan–Aug 2024 (in-sample)');ax.bar(x,subset.bd_train_rmse,.27,label='Backdated weights, 2022–23 (training)',color=GRAY);ax.bar(x+.27,subset.bd_holdout_rmse,.27,label='Backdated weights, Jan–Aug 2024 (out-of-sample)',hatch='//',color=ORANGE);ax.set_xticks(x,subset.outcome.map(label),fontsize=8);ax.set(ylabel='RMSE: '+('pp' if len(subset)==1 else 'log-%'));ax.legend(fontsize=7,frameon=False)
-            for ax,cols,ttl in zip(axes[2:],[['slope_p','bin_p'],['last8_p','pretrend_p']],['Drift tests: linear trend (●) and half-year bins (△)','Strict joint tests: Jan–Jul 2024 (●) and all 31 months (△)']):
-                if trends.empty:ax.set_visible(False);continue
+            fig,axes=figgrid('Validation before interpreting effects','Backdated weights (fitted 2022-23 only) forecasting 2024, and the formal pre-event tests.',1,2)
+            sub=fit.copy();x=np.arange(len(sub))
+            axes[0].bar(x-.2,sub.bd_train_rmse,.4,label='Training 2022-23',color=GRAY)
+            axes[0].bar(x+.2,sub.bd_holdout_rmse,.4,label='Forecast Jan-Aug 2024',hatch='//',color=ORANGE)
+            axes[0].set_xticks(x,sub.outcome.map(label),fontsize=8);axes[0].set(ylabel='RMSE (log-% / pp)');axes[0].legend(fontsize=8,frameon=False)
+            if trends.empty: axes[1].set_visible(False)
+            else:
                 y=np.arange(len(trends))
-                for col,mk in zip(cols,['o','^']):ax.scatter(trends[col].clip(lower=1e-20),y,color=BLUE,marker=mk,facecolors=BLUE if mk=='o' else 'none')
-                ax.set_xscale('log');ax.axvline(.05,color=ORANGE,ls='--',label='5% threshold');ax.set_yticks(y,trends.outcome.map(label),fontsize=8);ax.set(xlabel='p-value (log scale)',title=ttl);ax.title.set_fontsize(10);ax.legend(fontsize=8,frameon=False)
-            save(fig,'04_validation','Smaller p-values indicate pre-event differences. The definitive weights are fitted on the whole pre-event window, so their flat fit is not an out-of-sample validation; the hatched bars are.')
-        if not extpre.empty:
-            fig,axes=figgrid('Exploratory extension: pre-event diagnostics','Formal pre-event tests for the longer LAUS estimation sample.',1,2)
-            for ax,col in zip(axes,['pretrend_p','last8_p']):
-                ax.scatter(extpre[col],np.arange(len(extpre)),color=BLUE);ax.set_xscale('log');ax.axvline(.05,color=ORANGE,ls='--',label='5% threshold');ax.set_yticks(np.arange(len(extpre)),extpre.outcome.map(label),fontsize=9);ax.set(xlabel='p-value (log scale)',title=col.replace('_',' '));ax.legend(frameon=False,fontsize=8)
-            save(fig,'04b_extended_validation','Small p-values indicate pre-event differences. These checks remain exploratory and unadjusted.')
+                for col,mk,lab_ in [('slope_p','o','linear trend'),('pretrend_p','^','all 31 months')]:
+                    axes[1].scatter(trends[col].clip(lower=1e-20),y,color=BLUE,marker=mk,facecolors=BLUE if mk=='o' else 'none',label=lab_)
+                axes[1].set_xscale('log');axes[1].axvline(.05,color=ORANGE,ls='--')
+                axes[1].set_yticks(y,trends.outcome.map(label),fontsize=8);axes[1].set(xlabel='p-value (log scale)');axes[1].legend(fontsize=8,frameon=False)
+            save(fig,'04_validation','Left: the only genuinely out-of-sample check. Right: drift test and strict joint test, which answer different questions.')
         if not weights.empty:
             fig,axes=figgrid('Donor weights and model tuning','One shared weight vector fitted on Jan 2022–Aug 2024; the penalty is tuned on 2022–2023 only.')
             w=weights.sort_values('mc_w_joint',ascending=False);top=w.head(15).iloc[::-1]
             axes[0].barh(top.fips,100*top.mc_w_joint);axes[0].set(xlabel='Weight (%)',title='Top 15 donors (county FIPS)');axes[0].tick_params(axis='y',labelsize=8)
             axes[1].plot(np.arange(1,len(w)+1),100*w.mc_w_joint.cumsum());axes[1].set(xlabel='Donors ranked by weight',ylabel='Cumulative weight (%)',ylim=(0,102))
             if not cv.empty:axes[2].plot(cv['lambda'],cv.cv2023_rmse,'o-');axes[2].set(xscale='log',xlabel='Regularization parameter',ylabel='2023 validation error')
-            axes[3].axis('off')
-            if not solver.empty:
-                s=solver.iloc[0];axes[3].text(0,.85,f"Selected lambda: {fmt(s['lambda'])}\nActive donors: {fmt(s.n_active)}\nEffective donors: {fmt(s.effective_donors)}\nSolver dual gap: {fmt(s.dual_gap)}",va='top',fontsize=14,linespacing=1.8)
+            axes[3].set_visible(False)
             save(fig,'05_donors','County identifiers are FIPS codes. The effective donor count reflects weight concentration.')
         if not draws.empty and not ranks.empty:
             fig,axes=figgrid('Geographic placebo distributions','Same four-outcome fitting procedure; 39 counties in each pseudo-treated group.')
@@ -248,19 +277,6 @@ def main(root=ROOT):
                 ax.hist(draws.loc[draws.converged==1,'shock_'+o],bins=24,color=BLUE,alpha=.75)
                 r=ranks[(ranks.outcome==o)&(ranks.screen=='all')].iloc[0];ax.axvline(r.observed_shock,color=ORANGE,lw=2,label=f'Observed {r.observed_shock:+.2f}');ax.set(title=NAMES[o],xlabel=units(o),ylabel='Placebo draws');ax.legend(fontsize=8,frameon=False)
             save(fig,'06_placebo_distributions','Ranks are descriptive benchmarks, not randomized causal p-values. All converged draws are shown.')
-            fig,axes=figgrid('Placebo fit and sensitivity to fit screens','Convergence and pre-event fit are reported separately from the post-event benchmark.')
-            axes[0].scatter(draws.prefit_rmse,draws.pre2024_rmse,s=12,alpha=.6);axes[0].axvline(draws.observed_joint_prefit.iloc[0],ls='--',color=ORANGE);axes[0].set(xlabel='Scaled pre-event RMSE (Jan 2022–Aug 2024)',ylabel='Scaled RMSE, Jan–Aug 2024 segment')
-            axes[1].scatter(draws.iterations,draws.dual_gap,s=12);axes[1].axhline(draws.kkt_tolerance.iloc[0],color=ORANGE,ls='--');axes[1].set(xlabel='Iterations',ylabel='Solver dual gap')
-            for ax,col in zip(axes[2:],['left_rank','right_rank']):
-                for o in ranks.outcome.unique():
-                    d=ranks[ranks.outcome==o];ax.plot(np.arange(len(d)),d[col],marker='o',label=NAMES[o])
-                ax.set_xticks(np.arange(len(d)),d.screen,rotation=15,fontsize=8);ax.set(ylabel='Lower-tail rank' if col=='left_rank' else 'Two-sided rank',ylim=(0,1.05));ax.legend(fontsize=7,frameon=False)
-            save(fig,'07_placebo_diagnostics','Dashed lines: observed joint pre-event fit error (left) and frozen convergence tolerance (right). Both axes of the first panel are in-sample.')
-        if not times.empty:
-            fig,axes=figgrid('Pre-event time-placebo contrasts (backdated weights)','Weights fitted on 2022–23 only, so every 2024 contrast is out-of-sample. Compare earlier gap changes with the Oct–Dec 2024 shock.')
-            for ax,o in zip(axes,['emp','lf','jobs','urate']):
-                d=times[times.outcome==o];ax.bar(np.arange(len(d)),d.reference_change,color=[BLUE]*4+[ORANGE]);zero(ax);ax.set_xticks(np.arange(len(d)),['Mar–May vs Jan','Apr–Jun vs Feb','May–Jul vs Mar','Jun–Aug vs Apr','Helene']);ax.tick_params(axis='x',labelrotation=20,labelsize=8);ax.set(title=NAMES[o],ylabel=units(o))
-            save(fig,'08_time_placebos','Earlier checks are all in 2024: three-month average gap minus the indicated reference month; Helene bar is Oct–Dec 2024 minus August 2024 for the same backdated weights. No intervals are provided.')
         if not ext.empty:
             fig,axes=figgrid('Exploratory period effects through September 2026','Unadjusted individual 95% intervals; separate from the 18 main tests.',3,2)
             outcomes=list(ext.outcome.unique())
@@ -277,15 +293,6 @@ def main(root=ROOT):
             for ax,(_,r) in zip(axes[2:],migration.iterrows()):
                 ax.errorbar([r.b2025],[0],xerr=[[r.b2025-r.lo95],[r.hi95-r.b2025]],fmt='o',capsize=5);ax.axvline(0,color=GRAY);ax.set(yticks=[],title='2025 contrast: '+('net migration' if r.outcome=='netdom_per1000' else 'population growth'),xlabel='Migrants per 1,000' if r.outcome=='netdom_per1000' else 'Percentage points')
             save(fig,'11_migration','Net migration cannot distinguish fewer arrivals from more departures. Individual 95% intervals; exploratory, unadjusted.')
-        if not curves.empty:
-            for (dose,window),d in curves.groupby(['dose','window'],sort=False):
-                fig,axes=figgrid('Exploratory exposure curves: '+('damage index' if dose=='hdsi' else 'rainfall'),WINDOWS[window]+' — within-treated-county associations; pointwise bootstrap bands.',3,2)
-                for ax,o in zip(axes,['emp','lf','jobs','urate','unemp']):
-                    sub=d[d.outcome==o].sort_values('intensity');dots=county[(county.outcome==o)&(county.window==window)&(county.complete==1)] if not county.empty else pd.DataFrame()
-                    if not dots.empty:ax.scatter(dots[dose],dots.change,s=12,color=GRAY,alpha=.4)
-                    ax.plot(sub.intensity,sub.fitted,color=BLUE);ax.fill_between(sub.intensity,sub.lower,sub.upper,color=BLUE,alpha=.18);zero(ax);ax.set(title=NAMES[o],xlabel='HDSI (index)' if dose=='hdsi' else 'Rainfall (mm)',ylabel=units(o))
-                axes[5].axis('off');axes[5].text(0,.8,'Dots: complete-window county changes\nrelative to the county pre-event mean gap\nLine: local-linear Gaussian fit\nBand: 95% pointwise bootstrap interval\n\nExploratory association, not a causal curve.',fontsize=10,va='top',linespacing=1.8)
-                save(fig,'12_kernel_'+dose+'_'+window,'* In the medium window, workplace jobs end in March 2026; other outcomes end in September 2026. Low local support increases uncertainty.')
         if not coverage.empty:
             fig,axes=figgrid('Source coverage by month','Observed county counts; missingness remains explicit.',1,1);ax=axes[0]
             for c,name,sty in [('n_laus','LAUS','-'),('n_qcew','QCEW','--'),('n_pool','Eligible donor pool',':')]:ax.plot(coverage.mdate.map(month),coverage[c],sty,label=name)

@@ -7,6 +7,10 @@ ROOT = Path(__file__).resolve().parents[1]
 def git(*args):
     return subprocess.run(['git', *args], cwd=ROOT, check=True, capture_output=True, text=True).stdout
 
+# The only generated file published on purpose. It changes on every pipeline
+# run, so it is deliberately absent from SHA256SUMS.txt.
+GENERATED_RECEIPT = 'outputs/audit/REGRESSIONS.txt'
+
 candidates = set(git('ls-files', '--cached', '--others', '--exclude-standard').splitlines())
 assert candidates, 'No distributable files detected'
 for name in candidates:
@@ -17,7 +21,8 @@ for name in candidates:
     if p.parts[0] == 'data':
         assert p.name == '.gitkeep', name
     if p.parts[0] == 'outputs':
-        assert p.name == '.gitkeep' or name == 'outputs/README.md', name
+        assert p.name == '.gitkeep' or name in (
+            'outputs/README.md', GENERATED_RECEIPT), name
     if p.parts[0] == 'archive':
         assert name == 'archive/README.md', name
 for folder in ['data/raw', 'data/raw/LAUS', 'data/raw/QCEW', 'data/raw/census',
@@ -34,5 +39,6 @@ for line in (ROOT / 'SHA256SUMS.txt').read_text().splitlines():
     assert name in candidates, name
     assert hashlib.sha256((ROOT / name).read_bytes()).hexdigest() == expected, name
     manifest[name] = expected
-assert set(manifest) == candidates - {'SHA256SUMS.txt'}, 'Source manifest and upload file list differ'
+assert set(manifest) == candidates - {'SHA256SUMS.txt', GENERATED_RECEIPT}, \
+    'Source manifest and upload file list differ'
 print(f'PASS: {len(candidates)} upload files; required placeholders retained; no private/generated files; hashes verified.')

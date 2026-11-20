@@ -234,11 +234,10 @@ preserve
     assert _N==`reps'
     gen byte converged=(status==0 & dual_gap<=`tol')
     gen double observed_joint_prefit=scalar(HJ_OBS_FIT)
-    gen double lambda_locked=`joint_lambda'
-    gen long seed=`seed'
-    gen byte pseudo_group_size=39
-    gen double kkt_tolerance=`tol'
-    gen int max_iterations=`maxit'
+    * Run settings (lambda, seed, group size, tolerances) are fixed by the
+    * do-file and config; they were dropped from the per-draw table on
+    * 19 Nov 2026 rather than repeated on all 199 rows.
+    drop iterations status dual_gap
     save "${MC_OUT}/placebos/joint_placebo_draws.dta", replace
     export delimited using "${MC_OUT}/placebos/joint_placebo_draws.csv", replace
     quietly count if converged==0
@@ -262,15 +261,14 @@ preserve
         if `o'==4 local yn="urate"
         local obs=el(HJ_OBS,`o',1)
         local base=el(HJ_OBS,`o',2)
-        foreach bound in 0 1 1.5 2 {
+        /* Fit screens on relative pre-fit error were dropped 18 Nov 2026:
+           the treated aggregate is about five times harder to fit than a
+           random donor group, so every draw passed every screen and the
+           extra rows were identical to the unscreened ones by construction.
+           Ranks now use all converged draws. */
+        foreach bound in 0 {
             local condition "!missing(prefit_rmse)"
             local screen "all"
-            /* Fit screens use one shared four-outcome scale; require only
-               overall convergence for publication-ready ranks. */
-            if `bound'>0 {
-                local condition "prefit_rmse <= (`bound'*`obsjoint')"
-                local screen "`bound'x_treated"
-            }
             quietly count if `condition' & status==0
             local n=r(N)
             quietly count if `condition' & status==0 & shock_`yn'<=`obs'

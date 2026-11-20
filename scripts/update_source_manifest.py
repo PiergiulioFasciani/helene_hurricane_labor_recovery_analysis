@@ -10,8 +10,8 @@ result = subprocess.run(
 paths = sorted(set(p.decode() for p in result.stdout.split(b'\0') if p))
 lines = []
 for name in paths:
-    if name == 'SHA256SUMS.txt':
-        continue
+    if name in ('SHA256SUMS.txt', 'outputs/audit/REGRESSIONS.txt'):
+        continue  # the manifest itself, and a generated receipt that changes every run
     path = root / name
     if not path.is_file():
         raise SystemExit(f'Missing upload file: {name}')

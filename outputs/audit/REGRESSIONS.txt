@@ -1,0 +1,345 @@
+HELENE PIPELINE -- REGRESSIONS AS ACTUALLY ESTIMATED
+Written by the estimation stages themselves on 20 Nov 2026 20:06:01.
+Map and interpretation: docs/REGRESSIONS.md
+
+MODEL  04 joint / mc_yemp
+  command    areg mc_yemp <48 event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 48 treated-by-event-month indicators, k=-32..18 omitting k=-1 (Aug 2024, omitted reference), k=0 (Sep 2024, transition month) and k=13 (Oct 2025, LAUS missing); plus i.mdate calendar-month effects
+  absorbed   county_id (county fixed effects)
+  sample     Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025; 39 treated counties plus donors with mc_w_joint>1e-10
+  weights    treated=1/39 (equal-county mean); donor=mc_w_joint (fitted synthetic weight); analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  coefficients recentred to the mean of the 32 pre-event months Jan2022-Aug2024, NOT to Aug 2024 alone
+  writes     04_event_coefficients.dta / 04_period_effects.dta -> event_coefficients.csv, period_effects_raw.csv
+
+MODEL  04 joint / mc_ylf
+  command    areg mc_ylf <48 event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 48 treated-by-event-month indicators, k=-32..18 omitting k=-1 (Aug 2024, omitted reference), k=0 (Sep 2024, transition month) and k=13 (Oct 2025, LAUS missing); plus i.mdate calendar-month effects
+  absorbed   county_id (county fixed effects)
+  sample     Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025; 39 treated counties plus donors with mc_w_joint>1e-10
+  weights    treated=1/39 (equal-county mean); donor=mc_w_joint (fitted synthetic weight); analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  coefficients recentred to the mean of the 32 pre-event months Jan2022-Aug2024, NOT to Aug 2024 alone
+  writes     04_event_coefficients.dta / 04_period_effects.dta -> event_coefficients.csv, period_effects_raw.csv
+
+MODEL  04 joint / mc_yjobs
+  command    areg mc_yjobs <48 event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 48 treated-by-event-month indicators, k=-32..18 omitting k=-1 (Aug 2024, omitted reference), k=0 (Sep 2024, transition month) and k=13 (Oct 2025, LAUS missing); plus i.mdate calendar-month effects
+  absorbed   county_id (county fixed effects)
+  sample     Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025; 39 treated counties plus donors with mc_w_joint>1e-10
+  weights    treated=1/39 (equal-county mean); donor=mc_w_joint (fitted synthetic weight); analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  coefficients recentred to the mean of the 32 pre-event months Jan2022-Aug2024, NOT to Aug 2024 alone
+  writes     04_event_coefficients.dta / 04_period_effects.dta -> event_coefficients.csv, period_effects_raw.csv
+
+MODEL  04 joint / mc_yurate
+  command    areg mc_yurate <48 event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 48 treated-by-event-month indicators, k=-32..18 omitting k=-1 (Aug 2024, omitted reference), k=0 (Sep 2024, transition month) and k=13 (Oct 2025, LAUS missing); plus i.mdate calendar-month effects
+  absorbed   county_id (county fixed effects)
+  sample     Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025; 39 treated counties plus donors with mc_w_joint>1e-10
+  weights    treated=1/39 (equal-county mean); donor=mc_w_joint (fitted synthetic weight); analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  coefficients recentred to the mean of the 32 pre-event months Jan2022-Aug2024, NOT to Aug 2024 alone
+  writes     04_event_coefficients.dta / 04_period_effects.dta -> event_coefficients.csv, period_effects_raw.csv
+
+MODEL  04 joint / mc_ydiff
+  command    areg mc_ydiff <48 event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 48 treated-by-event-month indicators, k=-32..18 omitting k=-1 (Aug 2024, omitted reference), k=0 (Sep 2024, transition month) and k=13 (Oct 2025, LAUS missing); plus i.mdate calendar-month effects
+  absorbed   county_id (county fixed effects)
+  sample     Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025; 39 treated counties plus donors with mc_w_joint>1e-10
+  weights    treated=1/39 (equal-county mean); donor=mc_w_joint (fitted synthetic weight); analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  coefficients recentred to the mean of the 32 pre-event months Jan2022-Aug2024, NOT to Aug 2024 alone
+  writes     04_event_coefficients.dta / 04_period_effects.dta -> event_coefficients.csv, period_effects_raw.csv
+
+MODEL  04 joint / mc_yshare
+  command    areg mc_yshare <48 event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 48 treated-by-event-month indicators, k=-32..18 omitting k=-1 (Aug 2024, omitted reference), k=0 (Sep 2024, transition month) and k=13 (Oct 2025, LAUS missing); plus i.mdate calendar-month effects
+  absorbed   county_id (county fixed effects)
+  sample     Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025; 39 treated counties plus donors with mc_w_joint>1e-10
+  weights    treated=1/39 (equal-county mean); donor=mc_w_joint (fitted synthetic weight); analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  coefficients recentred to the mean of the 32 pre-event months Jan2022-Aug2024, NOT to Aug 2024 alone
+  writes     04_event_coefficients.dta / 04_period_effects.dta -> event_coefficients.csv, period_effects_raw.csv
+
+MODEL  04b extended LAUS / mx_emp  (EXPLORATORY)
+  command    areg mx_emp <event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 54 treated-by-event-month indicators over the extended horizon, plus i.mdate calendar-month effects
+  absorbed   county_id (county fixed effects)
+  sample     Jan 2022-Sep 2026 (LAUS only, beyond the QCEW-matched window), excluding Sep 2024 and Oct 2025
+  weights    treated=1/39; donor=mc_w_joint (same weights as stage 04); analytic
+  vce        cluster(county_id)
+  fitted     N=       8,470  clusters=   154  df_r=   153
+  reference  recentred to the same 32-month pre-event mean as stage 04
+  writes     04b_laus_*.dta -> LAUS_extended_*_EXPLORATORY.csv (outside the 18-test Holm family)
+
+MODEL  04b extended LAUS / mx_lf  (EXPLORATORY)
+  command    areg mx_lf <event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 54 treated-by-event-month indicators over the extended horizon, plus i.mdate calendar-month effects
+  absorbed   county_id (county fixed effects)
+  sample     Jan 2022-Sep 2026 (LAUS only, beyond the QCEW-matched window), excluding Sep 2024 and Oct 2025
+  weights    treated=1/39; donor=mc_w_joint (same weights as stage 04); analytic
+  vce        cluster(county_id)
+  fitted     N=       8,470  clusters=   154  df_r=   153
+  reference  recentred to the same 32-month pre-event mean as stage 04
+  writes     04b_laus_*.dta -> LAUS_extended_*_EXPLORATORY.csv (outside the 18-test Holm family)
+
+MODEL  04b extended LAUS / mx_urate  (EXPLORATORY)
+  command    areg mx_urate <event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 54 treated-by-event-month indicators over the extended horizon, plus i.mdate calendar-month effects
+  absorbed   county_id (county fixed effects)
+  sample     Jan 2022-Sep 2026 (LAUS only, beyond the QCEW-matched window), excluding Sep 2024 and Oct 2025
+  weights    treated=1/39; donor=mc_w_joint (same weights as stage 04); analytic
+  vce        cluster(county_id)
+  fitted     N=       8,470  clusters=   154  df_r=   153
+  reference  recentred to the same 32-month pre-event mean as stage 04
+  writes     04b_laus_*.dta -> LAUS_extended_*_EXPLORATORY.csv (outside the 18-test Holm family)
+
+MODEL  04b extended LAUS / mx_share  (EXPLORATORY)
+  command    areg mx_share <event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 54 treated-by-event-month indicators over the extended horizon, plus i.mdate calendar-month effects
+  absorbed   county_id (county fixed effects)
+  sample     Jan 2022-Sep 2026 (LAUS only, beyond the QCEW-matched window), excluding Sep 2024 and Oct 2025
+  weights    treated=1/39; donor=mc_w_joint (same weights as stage 04); analytic
+  vce        cluster(county_id)
+  fitted     N=       8,470  clusters=   154  df_r=   153
+  reference  recentred to the same 32-month pre-event mean as stage 04
+  writes     04b_laus_*.dta -> LAUS_extended_*_EXPLORATORY.csv (outside the 18-test Holm family)
+
+MODEL  04b extended LAUS / mx_unemp  (EXPLORATORY)
+  command    areg mx_unemp <event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 54 treated-by-event-month indicators over the extended horizon, plus i.mdate calendar-month effects
+  absorbed   county_id (county fixed effects)
+  sample     Jan 2022-Sep 2026 (LAUS only, beyond the QCEW-matched window), excluding Sep 2024 and Oct 2025
+  weights    treated=1/39; donor=mc_w_joint (same weights as stage 04); analytic
+  vce        cluster(county_id)
+  fitted     N=       8,470  clusters=   154  df_r=   153
+  reference  recentred to the same 32-month pre-event mean as stage 04
+  writes     04b_laus_*.dta -> LAUS_extended_*_EXPLORATORY.csv (outside the 18-test Holm family)
+
+MODEL  04c hdsi_tercile / mc_yemp
+  command    areg mc_yemp <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: the stage-04 event indicators split three ways by exposure tercile (low/mid/high, 13 treated counties each), so each tercile gets its own event path against the same donors; plus i.mdate
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04: Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025
+  weights    identical to stage 04: treated=1/39, donor=mc_w_joint; analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
+  writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  04c rain_tercile / mc_yemp
+  command    areg mc_yemp <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: the stage-04 event indicators split three ways by exposure tercile (low/mid/high, 13 treated counties each), so each tercile gets its own event path against the same donors; plus i.mdate
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04: Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025
+  weights    identical to stage 04: treated=1/39, donor=mc_w_joint; analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
+  writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  04c hdsi_tercile / mc_ylf
+  command    areg mc_ylf <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: the stage-04 event indicators split three ways by exposure tercile (low/mid/high, 13 treated counties each), so each tercile gets its own event path against the same donors; plus i.mdate
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04: Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025
+  weights    identical to stage 04: treated=1/39, donor=mc_w_joint; analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
+  writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  04c rain_tercile / mc_ylf
+  command    areg mc_ylf <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: the stage-04 event indicators split three ways by exposure tercile (low/mid/high, 13 treated counties each), so each tercile gets its own event path against the same donors; plus i.mdate
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04: Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025
+  weights    identical to stage 04: treated=1/39, donor=mc_w_joint; analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
+  writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  04c hdsi_tercile / mc_yjobs
+  command    areg mc_yjobs <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: the stage-04 event indicators split three ways by exposure tercile (low/mid/high, 13 treated counties each), so each tercile gets its own event path against the same donors; plus i.mdate
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04: Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025
+  weights    identical to stage 04: treated=1/39, donor=mc_w_joint; analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
+  writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  04c rain_tercile / mc_yjobs
+  command    areg mc_yjobs <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: the stage-04 event indicators split three ways by exposure tercile (low/mid/high, 13 treated counties each), so each tercile gets its own event path against the same donors; plus i.mdate
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04: Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025
+  weights    identical to stage 04: treated=1/39, donor=mc_w_joint; analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
+  writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  04c hdsi_tercile / mc_yurate
+  command    areg mc_yurate <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: the stage-04 event indicators split three ways by exposure tercile (low/mid/high, 13 treated counties each), so each tercile gets its own event path against the same donors; plus i.mdate
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04: Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025
+  weights    identical to stage 04: treated=1/39, donor=mc_w_joint; analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
+  writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  04c rain_tercile / mc_yurate
+  command    areg mc_yurate <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: the stage-04 event indicators split three ways by exposure tercile (low/mid/high, 13 treated counties each), so each tercile gets its own event path against the same donors; plus i.mdate
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04: Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025
+  weights    identical to stage 04: treated=1/39, donor=mc_w_joint; analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
+  writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  04c hdsi_tercile / mc_ydiff
+  command    areg mc_ydiff <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: the stage-04 event indicators split three ways by exposure tercile (low/mid/high, 13 treated counties each), so each tercile gets its own event path against the same donors; plus i.mdate
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04: Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025
+  weights    identical to stage 04: treated=1/39, donor=mc_w_joint; analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
+  writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  04c rain_tercile / mc_ydiff
+  command    areg mc_ydiff <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: the stage-04 event indicators split three ways by exposure tercile (low/mid/high, 13 treated counties each), so each tercile gets its own event path against the same donors; plus i.mdate
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04: Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025
+  weights    identical to stage 04: treated=1/39, donor=mc_w_joint; analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
+  writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  04c hdsi_tercile / mc_yshare
+  command    areg mc_yshare <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: the stage-04 event indicators split three ways by exposure tercile (low/mid/high, 13 treated counties each), so each tercile gets its own event path against the same donors; plus i.mdate
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04: Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025
+  weights    identical to stage 04: treated=1/39, donor=mc_w_joint; analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
+  writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  04c rain_tercile / mc_yshare
+  command    areg mc_yshare <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: the stage-04 event indicators split three ways by exposure tercile (low/mid/high, 13 treated counties each), so each tercile gets its own event path against the same donors; plus i.mdate
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04: Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025
+  weights    identical to stage 04: treated=1/39, donor=mc_w_joint; analytic
+  vce        cluster(county_id)
+  fitted     N=       7,546  clusters=   154  df_r=   153
+  reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
+  writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  02 migration / unwt / netdom_per1000 / pooled (all 39)
+  command    areg netdom_per1000 dm_all_2021 dm_all_2022 dm_all_2023 dm_all_2025 i.year if dm_in_unwt==1 [aw=dm_w_unwt], absorb(demo_id) vce(cluster demo_id)
+  regressors one treated-by-year indicator per year; 2021-2023 are the pre-tests, 2025 is the effect
+  absorbed   demo_id (county fixed effects, annual panel)
+  sample     annual July-to-July periods 2021-2025; 2024 is the omitted last unexposed year
+  weights    scheme unwt (unwt = eligible counties equally; syn = donors carrying the labor synthetic weights)
+  vce        cluster(demo_id)
+  fitted     N=       5,555  clusters=  1111  df_r=  1110
+  reference  2024; the reported effect is the 2025 coefficient
+  writes     02_migration_dose.dta -> migration_by_damage.csv
+
+MODEL  02 migration / unwt / netdom_per1000 / by damage tercile
+  command    areg netdom_per1000 dm_t{1,2,3}_{2021,2022,2023,2025} i.year if dm_in_unwt==1 [aw=dm_w_unwt], absorb(demo_id) vce(cluster demo_id)
+  regressors the same treated-by-year indicators split three ways by HDSI tercile, one regression so the high-minus-low contrast uses the joint covariance
+  absorbed   demo_id (county fixed effects, annual panel)
+  sample     annual July-to-July periods 2021-2025; 2024 is the omitted last unexposed year
+  weights    scheme unwt (unwt = eligible counties equally; syn = donors carrying the labor synthetic weights)
+  vce        cluster(demo_id)
+  fitted     N=       5,555  clusters=  1111  df_r=  1110
+  reference  2024; the reported effect is the 2025 coefficient
+  writes     02_migration_dose.dta -> migration_by_damage.csv
+
+MODEL  02 migration / unwt / pop_growth_pct / pooled (all 39)
+  command    areg pop_growth_pct dm_all_2021 dm_all_2022 dm_all_2023 dm_all_2025 i.year if dm_in_unwt==1 [aw=dm_w_unwt], absorb(demo_id) vce(cluster demo_id)
+  regressors one treated-by-year indicator per year; 2021-2023 are the pre-tests, 2025 is the effect
+  absorbed   demo_id (county fixed effects, annual panel)
+  sample     annual July-to-July periods 2021-2025; 2024 is the omitted last unexposed year
+  weights    scheme unwt (unwt = eligible counties equally; syn = donors carrying the labor synthetic weights)
+  vce        cluster(demo_id)
+  fitted     N=       5,555  clusters=  1111  df_r=  1110
+  reference  2024; the reported effect is the 2025 coefficient
+  writes     02_migration_dose.dta -> migration_by_damage.csv
+
+MODEL  02 migration / unwt / pop_growth_pct / by damage tercile
+  command    areg pop_growth_pct dm_t{1,2,3}_{2021,2022,2023,2025} i.year if dm_in_unwt==1 [aw=dm_w_unwt], absorb(demo_id) vce(cluster demo_id)
+  regressors the same treated-by-year indicators split three ways by HDSI tercile, one regression so the high-minus-low contrast uses the joint covariance
+  absorbed   demo_id (county fixed effects, annual panel)
+  sample     annual July-to-July periods 2021-2025; 2024 is the omitted last unexposed year
+  weights    scheme unwt (unwt = eligible counties equally; syn = donors carrying the labor synthetic weights)
+  vce        cluster(demo_id)
+  fitted     N=       5,555  clusters=  1111  df_r=  1110
+  reference  2024; the reported effect is the 2025 coefficient
+  writes     02_migration_dose.dta -> migration_by_damage.csv
+
+MODEL  02 migration / syn / netdom_per1000 / pooled (all 39)
+  command    areg netdom_per1000 dm_all_2021 dm_all_2022 dm_all_2023 dm_all_2025 i.year if dm_in_syn==1 [aw=dm_w_syn], absorb(demo_id) vce(cluster demo_id)
+  regressors one treated-by-year indicator per year; 2021-2023 are the pre-tests, 2025 is the effect
+  absorbed   demo_id (county fixed effects, annual panel)
+  sample     annual July-to-July periods 2021-2025; 2024 is the omitted last unexposed year
+  weights    scheme syn (unwt = eligible counties equally; syn = donors carrying the labor synthetic weights)
+  vce        cluster(demo_id)
+  fitted     N=         750  clusters=   150  df_r=   149
+  reference  2024; the reported effect is the 2025 coefficient
+  writes     02_migration_dose.dta -> migration_by_damage.csv
+
+MODEL  02 migration / syn / netdom_per1000 / by damage tercile
+  command    areg netdom_per1000 dm_t{1,2,3}_{2021,2022,2023,2025} i.year if dm_in_syn==1 [aw=dm_w_syn], absorb(demo_id) vce(cluster demo_id)
+  regressors the same treated-by-year indicators split three ways by HDSI tercile, one regression so the high-minus-low contrast uses the joint covariance
+  absorbed   demo_id (county fixed effects, annual panel)
+  sample     annual July-to-July periods 2021-2025; 2024 is the omitted last unexposed year
+  weights    scheme syn (unwt = eligible counties equally; syn = donors carrying the labor synthetic weights)
+  vce        cluster(demo_id)
+  fitted     N=         750  clusters=   150  df_r=   149
+  reference  2024; the reported effect is the 2025 coefficient
+  writes     02_migration_dose.dta -> migration_by_damage.csv
+
+MODEL  02 migration / syn / pop_growth_pct / pooled (all 39)
+  command    areg pop_growth_pct dm_all_2021 dm_all_2022 dm_all_2023 dm_all_2025 i.year if dm_in_syn==1 [aw=dm_w_syn], absorb(demo_id) vce(cluster demo_id)
+  regressors one treated-by-year indicator per year; 2021-2023 are the pre-tests, 2025 is the effect
+  absorbed   demo_id (county fixed effects, annual panel)
+  sample     annual July-to-July periods 2021-2025; 2024 is the omitted last unexposed year
+  weights    scheme syn (unwt = eligible counties equally; syn = donors carrying the labor synthetic weights)
+  vce        cluster(demo_id)
+  fitted     N=         750  clusters=   150  df_r=   149
+  reference  2024; the reported effect is the 2025 coefficient
+  writes     02_migration_dose.dta -> migration_by_damage.csv
+
+MODEL  02 migration / syn / pop_growth_pct / by damage tercile
+  command    areg pop_growth_pct dm_t{1,2,3}_{2021,2022,2023,2025} i.year if dm_in_syn==1 [aw=dm_w_syn], absorb(demo_id) vce(cluster demo_id)
+  regressors the same treated-by-year indicators split three ways by HDSI tercile, one regression so the high-minus-low contrast uses the joint covariance
+  absorbed   demo_id (county fixed effects, annual panel)
+  sample     annual July-to-July periods 2021-2025; 2024 is the omitted last unexposed year
+  weights    scheme syn (unwt = eligible counties equally; syn = donors carrying the labor synthetic weights)
+  vce        cluster(demo_id)
+  fitted     N=         750  clusters=   150  df_r=   149
+  reference  2024; the reported effect is the 2025 coefficient
+  writes     02_migration_dose.dta -> migration_by_damage.csv
+

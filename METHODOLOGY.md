@@ -1,6 +1,7 @@
 # Methodology
 
-This document describes the **active implementation**, including the existing 14 November 2026 revision. The repository reorganization does not introduce a new estimator, change any numerical result, or reopen model selection. Historical implementations are stored under `archive/`; they are not executed by the current pipeline.
+This document describes the **active implementation**. Historical versions are
+stored under `archive/` and are not executed by the current pipeline.
 
 ## 1. Research question and units
 
@@ -61,27 +62,42 @@ Each county series is initially centered on its own 2022 mean. Outcome scaling u
 
 ### Objective
 
-For a fitting interval of T months and K = 4 outcomes, let `y[k,t]` be the treated mean and `X[k,t,j]` donor j's transformed outcome. Let `s[k]` denote its fixed scale and `u[j] = 1/J` the uniform donor vector. The final fit is equivalent to:
+For a fitting interval of T months and K = 4 outcomes, let `y[k,t]` be the
+treated mean, `X[k,t,j]` donor j's transformed outcome, `s[k]` its fixed scale
+and `u[j] = 1/J` the uniform donor vector. The fit is:
 
 ```text
 minimize over w and outcome intercepts a:
-  (1 / (2 K T)) × sum[k,t] ((y[k,t] - a[k] - sum[j] X[k,t,j] w[j]) / s[k])²
-  + (lambda / 2) × sum[j] (w[j] - u[j])²
+  (1 / (2 K T)) x sum[k,t] ((y[k,t] - a[k] - sum[j] X[k,t,j] w[j]) / s[k])^2
+  + (lambda / 2) x sum[j] (w[j] - u[j])^2
 
 subject to w[j] >= 0 and sum[j] w[j] = 1.
 ```
 
-The intercepts are implemented by demeaning each outcome block over the fitting interval. This fits pre-event movements while allowing a fixed treated/control level difference. Mata uses accelerated projected gradient with a simplex projection and an explicit optimality-gap check.
+The intercepts are implemented by demeaning each outcome block over the fitting
+interval, which fits pre-event movements while allowing a fixed treated/control
+level difference. The ridge term shrinks toward uniform weights rather than
+toward zero, so it spreads weight across donors instead of discarding them.
+Mata solves it with accelerated projected gradient, a simplex projection and an
+explicit optimality-gap check.
 
-### Penalty selection and final fitting
+Lambda is selected by fitting 2022 and scoring 2023 over the grid
+`{0.03, 0.1, 0.3, 1, 3, 10}`, with ties resolved toward stronger
+regularization. The definitive weights are then fitted with intercepts over
+**January 2022-August 2024**. A backdated diagnostic fit uses **January
+2022-December 2023** with the same lambda and objective; it is a check, not an
+alternative primary estimator.
 
-The existing penalty-selection protocol is retained: fit 2022 and score 2023 over the grid `{0.03, 0.1, 0.3, 1, 3, 10}`. At this selection stage, the already 2022-centered outcome blocks are used without an additional interval-specific demeaning. A score within 1% of the minimum is considered near-best; ties choose the stronger regularization.
+The method uses synthetic-DiD-style **unit weights**, outcome intercepts and
+uniform pre-event time averaging. It does not estimate a separate
+synthetic-DiD time-weight vector, so calling it the full canonical synthetic
+DiD estimator would overstate the implementation.
 
-After selecting lambda, the definitive weights are fitted with outcome intercepts over **January 2022–August 2024**. A separate backdated diagnostic fit uses **January 2022–December 2023**, the same selected lambda and the intercept objective. It is not an alternative primary estimator.
+Derivations, the duality-gap stopping rule and the full selection table are in
+`docs/methods_note/helene_methods.tex`.
 
-The active method uses synthetic-DiD-style **unit weights**, outcome intercepts and uniform pre-event time averaging. It does not implement a separately estimated synthetic-DiD time-weight vector in the active pipeline. Calling it the full canonical synthetic-DiD estimator would therefore overstate the implementation.
-
-Key outputs are `outputs/labor/tables/donor_weights.csv`, `inner_2023_cv.csv`, `training_2022_scales.csv`, `solver_audit.csv` and `monthly_paths.csv`.
+Key outputs: `outputs/labor/tables/donor_weights.csv`, `inner_2023_cv.csv`,
+`training_2022_scales.csv`, `solver_audit.csv` and `monthly_paths.csv`.
 
 ## 5. Event study and period effects
 
@@ -110,45 +126,77 @@ Three primary windows average the event coefficients:
 
 The six outcomes times three windows form the **18-test Holm family**. Raw p-values and Holm-adjusted p-values are both retained. Displayed 95% intervals use county-clustered standard errors and a t critical value; they are individual intervals, not simultaneous Holm-adjusted confidence intervals.
 
-For labor force, the saved tables additionally include one-sided lower confidence limits and whether those limits exclude losses of 1% or 2%, using `log(0.99)` and `log(0.98)` thresholds. These are distinct from declaring a zero effect.
-
 Implementation: `src/labor/steps/04_joint_event_study.do` and `05_tables_figures.do`.
 
-## 6. Diagnostics supplied by the current specification
+## 6. Pre-event diagnostics
 
-The project reports full-pre-event fit, pre-event segment errors, maximum monthly gaps, linear drift contrasts, half-year-bin contrasts, strict joint monthly tests, counts of individually significant pre-event coefficients and the backdated 2024 prediction audit.
+Two tests are reported per outcome, and they answer different questions.
 
-The definitive fit includes 2024, so its 2024 fit is in-sample. The backdated weights provide the implemented out-of-sample comparison for January–August 2024. Both sets of quantities are retained with distinct column names (`fit_*` versus `bd_*`). This document records their definition without changing or re-evaluating the accepted specification.
+- **Drift.** A linear contrast across the 32 pre-event months. This is the test
+  that bears on the design: a comparison that was already trending apart will
+  attribute that trend to the storm.
+- **Strict joint zero.** A joint test that all 31 free pre-event coefficients
+  are exactly zero. This rejects for every outcome, at month-to-month
+  deviations of roughly 0.05-0.15 units against estimated effects an order of
+  magnitude larger. It is reported for completeness, not as a screen. The count
+  of individually significant pre-event coefficients and the largest absolute
+  pre-event coefficient are reported alongside it, to give the scale of the
+  noise it is rejecting.
 
-Implementation: `src/labor/steps/03_prefit_and_backdated_audit.do` and the event-study scripts.
+The definitive weights are fitted over the whole pre-event window, so flatness
+there is **in-sample and is not evidence**. The one out-of-sample check in the
+design is the backdated audit: weights fitted on 2022-2023 only are used to
+predict January-August 2024, which they never saw, and the ratio of forecast to
+training RMSE is reported.
+
+Implementation: `src/labor/steps/03_prefit_and_backdated_audit.do` and the
+event-study scripts.
 
 ## 7. Geographic placebo refits
 
 The default is 199 draws with seed 20261114. Each draw samples 39 eligible donor counties as a pseudo-treated group and removes them from its own donor pool. The fit uses all four outcomes, the same full-pre-event intercept objective, and the primary selected lambda. Default convergence settings are 30000 iterations and tolerance 0.00005; strict mode rejects a stage with unconverged fits.
 
-The observed and placebo shocks compare October–December 2024 with the pre-event mean gap. Output includes draws, convergence information, sampled county identities, and ranks for all converged draws and fixed relative pre-fit-error screens. Lower-tail and absolute-extremeness ranks use a +1 numerator/denominator correction.
+The observed and placebo shocks compare October-December 2024 with the
+pre-event mean gap. Output includes the draws, a convergence flag, the sampled
+county identities and ranks over all converged draws. Lower-tail and
+absolute-extremeness ranks use a +1 numerator/denominator correction.
 
 These are geographic benchmarking ranks. Treatment was not randomized across these groups, so the ranks are not randomized causal p-values. No old employment-only placebo procedure is called.
 
 Implementation and outputs: `src/labor/steps/07_joint_placebo_refits.do`; `outputs/labor/placebos/`.
 
-## 8. Exploratory labor extensions and exposure curves
-
-### Longer LAUS horizon
+## 8. Exploratory longer-horizon labor extension
 
 The extended LAUS analysis continues through September 2026 and reports additional windows, including November 2025–September 2026 and April–September 2026. It retains the shared primary comparison. Its p-values are exploratory and outside the 18-test main Holm family.
 
-### Exposure associations
+Implementation: `src/labor/steps/04b_extended_laus.do`.
 
-Within the treated counties, the code compares changes relative to the common synthetic path. Post-event county changes are rebased to each county's own pre-event mean gap. A January–August 2024 placebo window is measured against that county's 2022–2023 mean gap.
+## 8b. Damage-tercile event study
 
-Exposure variables are total rainfall and HDSI. Outcomes include employment, labor force, jobs, unemployment rate and unemployed residents. Windows are the pre-event placebo, October–December 2024, January–September 2025 and November 2025–September 2026; workplace jobs in the last window end in March 2026. Incomplete county-window outcomes are marked missing rather than averaged over silently shorter periods.
+The damage gradient is estimated **inside** the event study, with the same
+sample, analytic weights, county and month effects, county clustering and
+pre-event-mean reference as Section 5. Nothing in Section 5 is replaced. The 39
+treated counties are split into terciles of exposure (13 each) and each tercile
+gets its own event-study series against the same synthetic comparison; the
+high-minus-low window contrast is reported with its joint covariance.
 
-The curves use local-linear Gaussian smoothing and 299 county bootstrap draws, with pointwise intervals and effective-sample-size support diagnostics. The code also reports linear exposure slopes per one sample standard deviation of the exposure, using HC3 uncertainty, when at least 15 observations are available.
+- **Primary:** `hdsi_tercile`, terciles of the composite HDSI.
+- **Robustness:** `rain_tercile`, terciles of six-day rainfall alone, i.e.
+  meteorology with no FEMA claim behaviour in it. Reported as a footnote
+  comparison, not as a second set of headline results.
 
-These are descriptive within-treated-county exposure associations. The shared synthetic baseline changes levels, not the identifying source of cross-county exposure variation. Neither the curves nor the linear slopes establish a causal dose-response relationship. Pointwise bands and exploratory slope tests are not included in the main Holm family.
+Each tercile effect is an ATT for that exposure group against never-treated
+donors, so it requires only the parallel-trends assumption of Section 5 applied
+within the group. **Exposure is not randomly assigned** across the treated
+counties: damage correlates with terrain, income and industry mix, so the
+high-minus-low contrast compares differently exposed counties and is not a
+randomised dose.
 
-Implementation: `src/labor/steps/04b_extended_laus.do` and `06_kernel_rebased.do`.
+Multiplicity: Holm is applied within this family, which sits outside the main
+18-test family.
+
+Implementation and outputs: `src/labor/steps/04c_dose_event_study.do`;
+`outputs/labor/tables/dose_*.csv`; atlas pages `03b`-`03c`.
 
 ## 9. Annual migration and population comparison
 
@@ -156,24 +204,68 @@ Census Vintage 2025 components produce a separate county-year panel for 2020–2
 
 The annual regression uses 2021–2025, county and year effects, and treated-by-year indicators relative to 2024. Standard errors are clustered by county. It compares the 39 treated counties with geographically eligible counties with available annual observations, **without applying the labor synthetic weights**. Group summaries are equal-county means.
 
-The 2025 component spans July 2024–July 2025 and includes both pre- and post-Helene months. Net migration cannot distinguish increased departures from reduced arrivals or track the original residents individually. Annual estimates and diagnostics are exploratory and outside the main multiplicity family.
+The 2025 component spans July 2024-July 2025 and includes both pre- and
+post-Helene months. Net migration cannot distinguish increased departures from
+reduced arrivals, and does not track original residents individually. Annual
+estimates are exploratory and outside the main multiplicity family.
 
-Implementation and outputs: `src/migration/01_census_v2025.do`; `outputs/migration/`.
+**A negative contrast is slower net in-migration, not population loss.** Net
+migration stays positive for the treated group throughout: the high tercile
+falls from about +11.1 to +4.8 per 1,000. Two of the 39 counties show true net
+outflow and six show falling population. The damaged counties attracted fewer
+new residents than they otherwise would have; they did not depopulate, and the
+paper must not say they did.
 
-## 10. Reproducibility, provenance and reporting
+The same annual comparison is also run **by damage tercile**, using the HDSI groups of Section 8b, so that migration enters the design as an outcome of the dose-response framework rather than as a control. Migration is realized after treatment: conditioning on it would be a bad control and would remove the channel under study. Two comparison schemes are reported, unweighted eligible counties and donors carrying the labor synthetic-control weights; the pre-tests on the 2021–2023 treated-by-year coefficients discriminate between them.
 
-- Raw records, intermediate data, generated input panels, results and source code occupy separate directories.
-- The full run checks county-month identifiers, expected panel size, frozen treatment and missingness before estimation.
-- `outputs/audit/STAGE_STATUS.csv` gates result families in the report. File existence alone does not establish a successful stage.
-- Full source builds and estimation-only reruns have different provenance; the latter also records `RERUN_STATUS.txt` and does not rebuild migration or sources.
-- Historical logs retain historical paths. The reorganization map documents their current destinations instead of rewriting the historical record.
-- Source-code checksums and raw-source hashes are distinct. Reporting additionally records the hashes of its table inputs in `outputs/reports/graphs/manifest.json`.
-- The readable report and chart atlas transform presentation only. They do not recalculate weights, regressions or placebo fits.
+Implementation and outputs: `src/migration/01_census_v2025.do`, `src/migration/02_migration_dose.do`; `outputs/migration/`.
 
-## 11. Scope of inference and versioning
+## 10. Reproducibility and provenance
 
-The design is observational and was revised after earlier outcomes had been inspected. It is not a preregistered design. Fixed rosters and reproducible code do not by themselves establish causal identification.
+- Raw records, intermediate data, generated panels, results and source code
+  occupy separate directories.
+- The full run checks county-month identifiers, panel size, the frozen
+  treatment roster and missingness before estimation.
+- `outputs/audit/STAGE_STATUS.csv` gates result families in the report. A file
+  existing does not establish that its stage succeeded.
+- Full source builds and estimation-only reruns have different provenance; the
+  latter records `RERUN_STATUS.txt` and does not rebuild migration or sources.
+- Source-code checksums and raw-source hashes are distinct. Reporting records
+  the hashes of its table inputs in `outputs/reports/graphs/manifest.json`.
+- The readable report and chart atlas transform presentation only. They do not
+  recalculate weights, regressions or placebo fits.
+- Historical logs retain historical paths and are not rewritten.
 
-County clustering does not fully address correlated regional shocks or uncertainty from estimated donor weights. Geographic exclusions do not guarantee absence of spillovers. Source releases may revise observations; preserve the actual raw snapshots for replication. Migration, exposure curves and longer-horizon estimates are separate exploratory analyses.
+## 11. Scope of inference
 
-The reorganization preserves the active specification and saved numerical results. This methodology document is descriptive: methodological changes belong in a separately documented analysis revision, not in a file-layout change.
+The design is observational and was revised after earlier outcomes had been
+inspected. It is not preregistered. Fixed rosters and reproducible code do not
+by themselves establish causal identification.
+
+County clustering does not fully address correlated regional shocks or the
+uncertainty from estimated donor weights, and the geographic exclusions do not
+guarantee the absence of spillovers. Source releases may revise observations,
+so the raw snapshots should be preserved for replication. Migration,
+longer-horizon and damage-tercile estimates are exploratory relative to the
+main 18-test family.
+
+This document is descriptive. Methodological changes belong in a documented
+analysis revision, recorded below with a date.
+
+## Appendix. Removed from earlier versions
+
+- **Gaussian exposure curves** (stage `06_kernel_rebased.do`, 18 Nov 2026). The
+  damage gradient is estimated inside the event study instead (Section 8b), so
+  it needs no separate assumptions. Preserved under
+  `archive/kernel_dropped_2026-11-18/`.
+- **Continuous per-SD dose families** (18 Nov 2026). A per-SD slope is a causal
+  response only under a stronger parallel-trends assumption than the binned
+  tercile contrasts require.
+- **Placebo fit screens** (18 Nov 2026). Ranks are now computed over all
+  converged draws.
+- **Duplicate pre-event diagnostics** (19 Nov 2026): in-sample fit columns,
+  half-year bin contrasts, the last-eight-month contrast, pre-event RMSE and
+  the maximum pre-event t-statistic. Each duplicated one of the two tests in
+  Section 6 or described the in-sample fit.
+- **One-sided labor-force limits** and the 1%/2% rule-out flags (19 Nov 2026).
+  Not reported in any table or figure.

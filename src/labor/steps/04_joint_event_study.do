@@ -32,7 +32,6 @@ gen double mc_yshare=mc_yemp-mc_ylf
 gen int mc_k=mdate-ym(2024,9)
 local events ""
 local pre ""
-local va ""
 local presum ""
 forvalues k=-32/18 {
     if `k'!=-1 & `k'!=0 & `k'!=13 {
@@ -41,7 +40,6 @@ forvalues k=-32/18 {
         gen byte mc_ev_`s'=(treated_nc==1 & mc_k==`k')
         local events "`events' mc_ev_`s'"
         if `k'<-1 local pre "`pre' mc_ev_`s'"
-        if inrange(`k',-8,-2) local va "`va' mc_ev_`s'"
         if `k'<-1 {
             if "`presum'"=="" local presum "mc_ev_`s'"
             else local presum "`presum' + mc_ev_`s'"
@@ -62,62 +60,49 @@ forvalues k=-2(-1)-32 {
     }
     else local slopeexpr "`slopeexpr' - `a'*mc_ev_`s'"
 }
-* Half-year bin means equal to the Jan-Aug 2024 mean (4 restrictions).
-* Bin j has 6 months; the 2024 bin has 8 (seven coefficients plus the zero).
-local last ""
-forvalues k=-8/-2 {
-    local last "`last' - 6*mc_ev_m`=abs(`k')'"
-}
-forvalues j=1/4 {
-    local lo=-32+6*(`j'-1)
-    local hi=`lo'+5
-    local bin`j' ""
-    forvalues k=`lo'/`hi' {
-        if "`bin`j''"=="" local bin`j' "8*mc_ev_m`=abs(`k')'"
-        else local bin`j' "`bin`j'' + 8*mc_ev_m`=abs(`k')'"
-    }
-    local bin`j' "`bin`j'' `last'"
-}
-
 tempname E P D
 postfile `E' str12 model str12 outcome int event_month double beta se ///
     lower95 upper95 double pvalue long N_clust N_obs ///
     using "${MC_OUT}/data/04_event_coefficients.dta", replace
 postfile `P' str12 model str12 outcome str12 window byte months ///
-    double beta se lower95 upper95 pvalue lf_one_sided_lb ///
-    byte rule_out_1pct rule_out_2pct long N_clust N_obs ///
+    double beta se lower95 upper95 pvalue long N_clust N_obs ///
     using "${MC_OUT}/data/04_period_effects.dta", replace
-postfile `D' str12 model str12 outcome double pretrend_p last8_p ///
-    slope_p bin_p pre_rmse max_abs_pre max_abs_t int n_sig05 ///
-    long N_clust N_obs using "${MC_OUT}/data/04_twfe_diagnostics.dta", replace
+postfile `D' str12 model str12 outcome double pretrend_p slope_p ///
+    max_abs_pre int n_sig05 long N_clust N_obs using "${MC_OUT}/data/04_twfe_diagnostics.dta", replace
 
 local model "joint"
+* Weights and sample are identical for every outcome, so build them once.
+*   treated county  -> 1/39 (equal-county treated mean)
+*   donor county    -> its fitted synthetic weight mc_w_joint
+*   in sample       -> treated, or a donor carrying non-negligible weight
+tempvar mw mins
+gen double `mw'=cond(treated_nc==1,1/39,mc_w_joint)
+gen byte `mins'=treated_nc==1 | (mc_w_joint>1e-10 & mc_donor==1)
+assert `mw'>0 if `mins'
+
 foreach y in mc_yemp mc_ylf mc_yjobs mc_yurate mc_ydiff mc_yshare {
-    local wvar="mc_w_joint"
-        tempvar mw mins
-        gen double `mw'=cond(treated_nc==1,1/39,`wvar')
-        gen byte `mins'=treated_nc==1 | (`wvar'>1e-10 & mc_donor==1)
-        assert `mw'>0 if `mins'
         di as txt "TWFE `model': `y'"
         quietly areg `y' `events' i.mdate if `mins' [aw=`mw'], ///
             absorb(county_id) vce(cluster county_id)
+        local spec_tag  "04 joint / `y'"
+        local nev : word count `events'
+        local spec_cmd  "areg `y' <`nev' event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)"
+        local spec_rhs  "`nev' treated-by-event-month indicators, k=-32..18 omitting k=-1 (Aug 2024, omitted reference), k=0 (Sep 2024, transition month) and k=13 (Oct 2025, LAUS missing); plus i.mdate calendar-month effects"
+        local spec_sample "Jan 2022-Mar 2026, excluding Sep 2024 and Oct 2025; 39 treated counties plus donors with mc_w_joint>1e-10"
+        local spec_wt   "treated=1/39 (equal-county mean); donor=mc_w_joint (fitted synthetic weight); analytic"
+        local spec_ref  "coefficients recentred to the mean of the 32 pre-event months Jan2022-Aug2024, NOT to Aug 2024 alone"
+        local spec_out  "04_event_coefficients.dta / 04_period_effects.dta -> event_coefficients.csv, period_effects_raw.csv"
+        include "${MC_ROOT}/steps/_logspec.doh"
         local n=e(N)
         local g=e(N_clust)
         local df=e(df_r)
         local tcrit=invttail(`df',.025)
         local pp=.
-        local vp=.
         capture quietly test `pre'
         if !_rc local pp=r(p)
-        capture quietly test `va'
-        if !_rc local vp=r(p)
         quietly lincom `slopeexpr'
         local sp=r(p)
-        quietly test (`bin1'=0) (`bin2'=0) (`bin3'=0) (`bin4'=0)
-        local bp=r(p)
-        local ssq=0
         local maxb=0
-        local maxt=0
         local nsig=0
         forvalues k=-32/18 {
             if `k'!=0 & `k'!=13 {
@@ -133,15 +118,12 @@ foreach y in mc_yemp mc_ylf mc_yjobs mc_yurate mc_ydiff mc_yshare {
                 post `E' ("`model'") ("`y'") (`k') (`b') (`se') ///
                     (`lb') (`ub') (`pv') (`g') (`n')
                 if `k'<0 {
-                    local ssq=`ssq'+(`b')^2
                     if abs(`b')>`maxb' local maxb=abs(`b')
-                    if abs(`b'/`se')>`maxt' local maxt=abs(`b'/`se')
                     if `pv'<.05 local nsig=`nsig'+1
                 }
             }
         }
-        post `D' ("`model'") ("`y'") (`pp') (`vp') (`sp') (`bp') ///
-            (sqrt(`ssq'/32)) (`maxb') (`maxt') (`nsig') (`g') (`n')
+        post `D' ("`model'") ("`y'") (`pp') (`sp') (`maxb') (`nsig') (`g') (`n')
         foreach window in immediate year2025 late {
             if "`window'"=="immediate" local terms "mc_ev_p1 mc_ev_p2 mc_ev_p3"
             if "`window'"=="year2025" local terms "mc_ev_p4 mc_ev_p5 mc_ev_p6 mc_ev_p7 mc_ev_p8 mc_ev_p9 mc_ev_p10 mc_ev_p11 mc_ev_p12"
@@ -158,20 +140,9 @@ foreach y in mc_yemp mc_ylf mc_yjobs mc_yurate mc_ydiff mc_yshare {
             local pv=r(p)
             local lb=`b'-`tcrit'*`s'
             local ub=`b'+`tcrit'*`s'
-            local lower1=.
-            local r1=.
-            local r2=.
-            if "`y'"=="mc_ylf" {
-                local lower1=`b'-invttail(`df',.05)*`s'
-                local r1=(`lower1'>ln(.99))
-                local r2=(`lower1'>ln(.98))
-            }
             post `P' ("`model'") ("`y'") ("`window'") (`len') ///
-                (`b') (`s') (`lb') (`ub') (`pv') (`lower1') ///
-                (`r1') (`r2') (`g') (`n')
+                (`b') (`s') (`lb') (`ub') (`pv') (`g') (`n')
         }
-        estimates save "${MC_OUT}/data/04_est_`model'_`y'.ster", replace
-        drop `mw' `mins'
 }
 postclose `E'
 postclose `P'

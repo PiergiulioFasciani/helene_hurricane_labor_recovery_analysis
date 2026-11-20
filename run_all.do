@@ -1,5 +1,5 @@
 /* HELENE DEFINITIVE JOINT-ONLY pipeline: source-built panel -> four-outcome
-   synthetic control -> diagnostics, matched TWFE, kernel, new joint placebos
+   synthetic control -> diagnostics, matched TWFE, damage-tercile events, joint placebos
    -> annual migration -> one TXT report. No historical estimators. */
 version 16.0
 clear all
@@ -9,6 +9,18 @@ set graphics off
 capture log close _all
 local hroot "`c(pwd)'"
 global H_ROOT "`hroot'"
+
+* Start a fresh regression log: every estimation command appends its own
+* expanded specification to this file as it runs (see src/labor/steps/_logspec.doh).
+capture mkdir "${H_ROOT}/outputs/audit"
+tempname _rl
+file open `_rl' using "${H_ROOT}/outputs/audit/REGRESSIONS.txt", write replace text
+file write `_rl' "HELENE PIPELINE -- REGRESSIONS AS ACTUALLY ESTIMATED" _n
+file write `_rl' "Written by the estimation stages themselves on $S_DATE $S_TIME." _n
+file write `_rl' "Map and interpretation: docs/REGRESSIONS.md" _n
+file write `_rl' "" _n
+file close `_rl'
+
 foreach dir in "data" "data/input" "data/raw" "data/raw/census" ///
     "outputs" "outputs/audit" "outputs/reports" "outputs/labor" ///
     "outputs/preprocessing" "outputs/migration" {
@@ -138,7 +150,18 @@ if `haspanel' {
             file write hs "census_annual_migration,FAILED_OR_UNAVAILABLE,`rc'" _n
             local any_fail 1
         }
-        else file write hs "census_annual_migration,PASSED,0" _n
+        else {
+            file write hs "census_annual_migration,PASSED,0" _n
+        }
+        file close hs
+        capture noisily do "`hroot'/src/migration/02_migration_dose.do"
+        local rc=_rc
+        file open hs using "`stagecsv'", write text append
+        if `rc' {
+            file write hs "migration_by_damage,FAILED,`rc'" _n
+            local any_fail 1
+        }
+        else file write hs "migration_by_damage,PASSED,0" _n
         file close hs
     }
     else {

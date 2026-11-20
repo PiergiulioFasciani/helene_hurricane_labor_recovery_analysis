@@ -37,8 +37,8 @@ do "steps/02_fit_weights.do"
 do "steps/03_prefit_and_backdated_audit.do"
 do "steps/04_joint_event_study.do"
 do "steps/04b_extended_laus.do"
+do "steps/04c_dose_event_study.do"
 do "steps/05_tables_figures.do"
-do "steps/06_kernel_rebased.do"
 
 di as result "COMPLETE. Results: ${MC_OUT}/"
 log close

@@ -15,6 +15,10 @@ config.local.do
 !/outputs/**/
 !/outputs/**/.gitkeep
 !/outputs/README.md
+# The regression receipt is generated, but it is published deliberately: it is
+# how a reader checks what was estimated without running Stata. It carries a
+# run timestamp, so it is excluded from SHA256SUMS.txt (see scripts/).
+!/outputs/audit/REGRESSIONS.txt
 
 # Historical working material stays local; publish its index only.
 /archive/**

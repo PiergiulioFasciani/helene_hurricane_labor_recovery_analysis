@@ -23,7 +23,7 @@ Regenerate these with `do "run_report_only.do"` from the project root. This does
 - `REPORT_BUILD_OK.txt`: successful presentation-build marker.
 - `REORGANIZATION_VALIDATION.json`: file-preservation and layout checks for the reorganization.
 
-Earlier audit records are not rewritten to pretend they were produced at new paths. Use `../docs/REORGANIZATION_MAP.json` to resolve historical locations. An old rerun audit is not the status of a later report-only refresh.
+Earlier audit records are not rewritten to pretend they were produced at new paths. An old rerun audit is not the status of a later report-only refresh.
 
 ## Source construction (`preprocessing/`)
 
@@ -45,9 +45,11 @@ Earlier audit records are not rewritten to pretend they were produced at new pat
 | `tables/event_coefficients.csv` | Monthly main event estimates |
 | `tables/period_effects_WITH_HOLM.csv` | Main 18-test effect family, raw and adjusted p-values |
 | `tables/LAUS_extended_*` | Exploratory longer-horizon labor estimates |
-| `tables/gaussian_rebased_curves.csv` | Curves, intervals and support diagnostics |
-| `tables/kernel_county_windows.csv` | County-window changes and exposure fields |
-| `tables/kernel_dose_slopes.csv` | Linear exposure gradients and uncertainty |
+| `tables/dose_event_coefficients.csv` | Exposure-interacted event study: monthly level and per-SD coefficients (HDSI, rainfall) and HDSI-tercile series |
+| `tables/dose_period_effects.csv` | Window averages for the same terms, high-minus-low tercile contrast, Holm within each exploratory family |
+| `tables/dose_pretrend_tests.csv` | Pre-event tests on the exposure terms |
+| `../migration/migration_by_damage.csv` | Annual migration and population by HDSI tercile, two comparison schemes |
+| `tables/dose_treated_exposure.csv` | Standardised exposures and HDSI tercile of each treated county |
 | `placebos/joint_placebo_draws.csv` | Each pseudo-treated fit and its diagnostics |
 | `placebos/joint_placebo_summary.csv` | Outcome ranks and fit-screen summaries |
 | `placebos/joint_placebo_counties.csv` | County membership for every draw |

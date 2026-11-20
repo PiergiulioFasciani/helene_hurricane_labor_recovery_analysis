@@ -65,7 +65,7 @@ Source code never writes analysis output into `src/`. Frozen reference rosters a
 
 ## Requirements
 
-- **Stata:** source files declare version 16.0; the working project has been executed with Stata 19.5. The current kernel-gradient stage uses `vce(hc3)`, so compatibility with every older Stata release is not certified. Use the tested runtime for replication.
+- **Stata:** source files declare version 16.0; the working project has been executed with Stata 19.5. Event-study stages use `areg ... vce(cluster county_id)` with analytic weights; the synthetic-control solver is Mata (FISTA with simplex projection).
 - **Python 3:** NumPy, pandas and Matplotlib for reporting. Install into the interpreter you want Stata to use:
 
   ```sh
@@ -146,7 +146,7 @@ If Stata selects a Python without the required packages, set `H_PYTHON` to the a
 
 ### Individual labor stages
 
-For advanced use, the module entry points are in `src/labor/`: `run_multicontrol.do`, `run_postfit_only.do`, `run_kernel_only.do`, and `run_joint_placebos.do`. They expect that directory as the working directory and the required earlier outputs to exist. Prefer the root entry points for a coherent pipeline run; manual module runs do not independently refresh the master stage-status table.
+For advanced use, the module entry points are in `src/labor/`: `run_multicontrol.do` and `run_joint_placebos.do`. They expect that directory as the working directory and the required earlier outputs to exist. Prefer the root entry points for a coherent pipeline run; manual module runs do not independently refresh the master stage-status table.
 
 ## Inputs and provenance
 

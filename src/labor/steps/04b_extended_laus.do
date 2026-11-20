@@ -21,7 +21,6 @@ gen double mx_unemp=mc_raw_unemp
 gen int mx_k=mdate-ym(2024,9)
 local events ""
 local pre ""
-local valid ""
 local presum ""
 forvalues k=-32/24 {
     if `k'!=-1 & `k'!=0 & `k'!=13 {
@@ -30,7 +29,6 @@ forvalues k=-32/24 {
         gen byte mx_ev_`s'=(treated_nc==1 & mx_k==`k')
         local events "`events' mx_ev_`s'"
         if `k'<-1 local pre "`pre' mx_ev_`s'"
-        if inrange(`k',-8,-2) local valid "`valid' mx_ev_`s'"
         if `k'<-1 {
             if "`presum'"=="" local presum "mx_ev_`s'"
             else local presum "`presum' + mx_ev_`s'"
@@ -54,31 +52,38 @@ postfile `E' str12 model str12 outcome int event_month ///
     double beta se lower95 upper95 pvalue long N_clust N_obs ///
     using "${MC_OUT}/data/04b_laus_event_coefficients.dta", replace
 postfile `P' str12 model str12 outcome str15 window byte months ///
-    double beta se lower95 upper95 pvalue lf_one_sided_lb ///
-    byte rule_out_1pct rule_out_2pct long N_clust N_obs ///
+    double beta se lower95 upper95 pvalue long N_clust N_obs ///
     using "${MC_OUT}/data/04b_laus_period_effects.dta", replace
-postfile `D' str12 model str12 outcome double pretrend_p last8_p slope_p ///
+postfile `D' str12 model str12 outcome double pretrend_p slope_p ///
     using "${MC_OUT}/data/04b_laus_pretrends.dta", replace
 
 local model "joint"
+* Weights and sample are identical for every outcome, so build them once.
+tempvar ww included
+gen double `ww'=cond(treated_nc==1,1/39,mc_w_joint)
+gen byte `included'=treated_nc==1 | (mc_donor==1 & mc_w_joint>1e-10)
+assert `ww'>0 if `included'
+
 foreach y in mx_emp mx_lf mx_urate mx_share mx_unemp {
-    local wvar="mc_w_joint"
-        tempvar ww included
-        gen double `ww'=cond(treated_nc==1,1/39,`wvar')
-        gen byte `included'=treated_nc==1 | (mc_donor==1 & `wvar'>1e-10)
         quietly areg `y' `events' i.mdate if `included' [aw=`ww'], ///
             absorb(county_id) vce(cluster county_id)
+        local spec_tag  "04b extended LAUS / `y'  (EXPLORATORY)"
+        local spec_cmd  "areg `y' <event indicators> i.mdate if <sample> [aw=<weight>], absorb(county_id) vce(cluster county_id)"
+        local nev : word count `events'
+        local spec_rhs  "`nev' treated-by-event-month indicators over the extended horizon, plus i.mdate calendar-month effects"
+        local spec_sample "Jan 2022-Sep 2026 (LAUS only, beyond the QCEW-matched window), excluding Sep 2024 and Oct 2025"
+        local spec_wt   "treated=1/39; donor=mc_w_joint (same weights as stage 04); analytic"
+        local spec_ref  "recentred to the same 32-month pre-event mean as stage 04"
+        local spec_out  "04b_laus_*.dta -> LAUS_extended_*_EXPLORATORY.csv (outside the 18-test Holm family)"
+        include "${MC_ROOT}/steps/_logspec.doh"
         local df=e(df_r)
         local crit=invttail(`df',.025)
         local pre_p=.
-        local val_p=.
         capture quietly test `pre'
         if !_rc local pre_p=r(p)
-        capture quietly test `valid'
-        if !_rc local val_p=r(p)
         quietly lincom `slopeexpr'
         local slope_p=r(p)
-        post `D' ("`model'") ("`y'") (`pre_p') (`val_p') (`slope_p')
+        post `D' ("`model'") ("`y'") (`pre_p') (`slope_p')
         forvalues k=-32/24 {
             if `k'!=0 & `k'!=13 {
                 if `k'<0 local s="m`=abs(`k')'"
@@ -116,19 +121,9 @@ foreach y in mx_emp mx_lf mx_urate mx_share mx_unemp {
             local pp=r(p)
             local lo=`b'-`crit'*`se'
             local hi=`b'+`crit'*`se'
-            local lower1=.
-            local rule1=.
-            local rule2=.
-            if "`y'"=="mx_lf" {
-                local lower1=`b'-invttail(`df',.05)*`se'
-                local rule1=(`lower1'>ln(.99))
-                local rule2=(`lower1'>ln(.98))
-            }
             post `P' ("`model'") ("`y'") ("`window'") (`nterms') ///
-                (`b') (`se') (`lo') (`hi') (`pp') (`lower1') (`rule1') (`rule2') ///
-                (e(N_clust)) (e(N))
+                (`b') (`se') (`lo') (`hi') (`pp') (e(N_clust)) (e(N))
         }
-        drop `ww' `included'
 }
 postclose `E'
 postclose `P'
