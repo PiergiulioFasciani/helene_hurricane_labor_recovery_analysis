@@ -36,7 +36,7 @@ Helene_Definitive_Joint_Research/
 │   ├── labor/
 │   │   ├── run_*.do                # Labor-stage entry points
 │   │   ├── config.example.do       # Internal solver defaults
-│   │   └── steps/                  # Fitting, diagnostics, inference, curves, placebos
+│   │   └── steps/                  # Weight fitting, out-of-sample audit, event studies, placebos
 │   ├── migration/                  # Annual Census construction and comparisons
 │   └── reporting/                  # Readable TXT, PDF atlas, PNG/HTML gallery
 ├── references/
@@ -53,15 +53,41 @@ Helene_Definitive_Joint_Research/
 │   ├── labor/                      # Labor tables, datasets, figures, logs, placebos
 │   ├── migration/                  # Annual county panel and migration tables
 │   └── reports/                    # Final readable results and curated graph atlas
-├── docs/                           # Source setup, protocol and relocation map
+├── docs/                           # Source setup, regression map, typeset methods notes
 ├── scripts/                        # Raw-source checksum utility
-├── tests/                          # Structure, source-contract and reporting checks
+├── tests/                          # Structure, source-contract, reporting and packaging checks
 ├── archive/                        # Historical snapshots; never executed by active runners
 ├── SHA256SUMS.txt                   # Current distributable source-file checksums
 └── LICENSE                         # Code license
 ```
 
-Source code never writes analysis output into `src/`. Frozen reference rosters are separate from generated sample-assignment tables. Historical run logs may retain the paths used when they were created; [REORGANIZATION_MAP.json](docs/REORGANIZATION_MAP.json) maps old locations to current ones.
+Source code never writes analysis output into `src/`. Frozen reference rosters are separate from generated sample-assignment tables. Historical run logs may retain the paths that were current when they were written; they are not rewritten.
+
+### Estimation stages
+
+`src/labor/run_multicontrol.do` executes these in order:
+
+| Stage | Does |
+|---|---|
+| `01_frozen_sample.do` | Freezes the 39-county roster and the eligible donor pool; builds the treated aggregate |
+| `02_fit_weights.do` | Selects the penalty, fits the definitive weights (Jan 2022–Aug 2024) and the backdated weights (2022–23), stores both |
+| `03_prefit_and_backdated_audit.do` | Out-of-sample forecast audit: 2022–23 weights predicting Jan–Aug 2024 |
+| `04_joint_event_study.do` | Main weighted TWFE event study, six outcomes, three windows |
+| `04b_extended_laus.do` | Exploratory extension to September 2026 on LAUS alone |
+| `04c_dose_event_study.do` | Damage-tercile event study (HDSI primary, rainfall robustness) |
+| `04d_backdated_weights_robustness.do` | Re-estimates 04 and 04c on weights that never saw 2024, and emits the out-of-sample pre-event diagnostics |
+| `05_tables_figures.do` | Formats the headline tables |
+
+`src/labor/run_joint_placebos.do` (stage 07) refits the weights on 199 pseudo-treated donor groups. `src/migration/` builds the annual Census panel and estimates migration by damage.
+
+### Tracing the regressions
+
+Five regressions produce every estimate in the project, plus one robustness refit. Two files document them:
+
+- [docs/REGRESSIONS.md](docs/REGRESSIONS.md) — the map: what each regression is, the shared specification, and which event months carry no indicator.
+- `outputs/audit/REGRESSIONS.txt` — the receipt, rewritten on every run by the estimation stages themselves. Each fitted model records its command, regressors, sample, weights, clustering, reference, and the `N`, cluster count and residual degrees of freedom Stata returned. Because the code generates it, it cannot drift from the code.
+
+Typeset methods notes are in [docs/methods_note/](docs/methods_note/).
 
 ## Requirements
 
@@ -114,7 +140,7 @@ The runner:
 
 1. Rebuilds the national panel from raw source records inside this repository.
 2. Validates county-month uniqueness, expected size, treatment roster and required missingness.
-3. Fits the active shared four-outcome model and produces labor estimates and exploratory curves.
+3. Fits the shared four-outcome weight vector, then runs the event studies: main, damage-tercile, extended-horizon and the backdated-weight refit.
 4. Refits geographic placebo groups and processes annual Census migration when enabled.
 5. Regenerates readable results and figures from the stages recorded as passed.
 
@@ -126,7 +152,7 @@ Existing raw files are cached inputs. The full runner does not import a prior co
 do "rerun_estimation_only.do"
 ```
 
-Requires `data/input/Helene_NC_ES_preinference_panel.dta`. Re-estimates labor and placebos and then requests reporting. It does not download sources, rebuild the source panel or re-estimate migration. Its return-code audit is `outputs/audit/RERUN_STATUS.txt`; retain the full-run `STAGE_STATUS.csv` as the earlier source-stage record and inspect both when assessing provenance.
+Requires `data/input/Helene_NC_ES_preinference_panel.dta`. Re-estimates the labor stages, the placebo refits and migration-by-damage, then requests reporting. It does not download sources, rebuild the source panel, or rebuild the annual Census migration data (run `src/migration/01_census_v2025.do` or `run_all.do` for that). Its return-code audit is `outputs/audit/RERUN_STATUS.txt`; retain the full-run `STAGE_STATUS.csv` as the earlier source-stage record and inspect both when assessing provenance.
 
 ### Report-only run
 
@@ -160,11 +186,20 @@ The default LAUS route is **economicdata.dev, an independent distributor of BLS 
 
 - `outputs/labor/tables/`: analysis CSVs, suitable for independent inspection or plotting.
 - `outputs/labor/data/`: derived Stata datasets and saved estimation objects.
-- `outputs/labor/figures/`: original stage-generated PNG and Stata graph files.
+- `outputs/labor/figures/`: retained as a placeholder; stage figures are no longer written here, and presentation graphics are built under `outputs/reports/graphs/`.
 - `outputs/labor/placebos/`: draws, summaries, sampled counties and placebo log.
 - `outputs/reports/graphs/`: curated presentation PNGs, local HTML gallery and input-hash manifest.
 - `outputs/migration/`: annual county data and comparison tables.
 - `outputs/audit/`: execution and provenance records; these are not effect estimates.
+- `outputs/audit/REGRESSIONS.txt`: every fitted specification as the code actually ran it (see above).
+
+Validation evidence lives in three tables, and they are not interchangeable:
+
+| File | What it is |
+|---|---|
+| `backdated_pretrends.csv` | **The primary check.** Pre-event coefficients under the 2022–23 weights, split into the window those weights saw and the genuine Jan–Jul 2024 holdout, with a drift test |
+| `pretrend_train_holdout_ALL.csv` | The same information as forecast error: training versus holdout RMSE |
+| `twfe_pretrend_tests.csv` | The definitive weights on the window they were fitted on. **In-sample, and not evidence** — retained for completeness |
 
 The report's `graphs/manifest.json` lists inputs and their hashes, generated pages and unavailable families. The input CSVs are retained rather than pasted wholesale into the readable TXT.
 
@@ -176,9 +211,10 @@ From the root:
 python3 tests/check_repository.py
 python3 tests/test_source_first.py
 python3 tests/test_reporting.py
+python3 tests/test_github_ready.py
 ```
 
-The first two inspect source structure and the source-first contract. The reporting test verifies that stale estimates cannot appear when their stage failed. These checks do not replace an end-to-end source and estimation run.
+The first two inspect source structure and the source-first contract. The reporting test verifies that stale estimates cannot appear when their stage failed. The packaging test checks the distributable file set and verifies every checksum in `SHA256SUMS.txt`; run `python3 scripts/update_source_manifest.py` after changing any tracked source file. These checks do not replace an end-to-end source and estimation run.
 
 | Symptom | Inspect |
 |---|---|
