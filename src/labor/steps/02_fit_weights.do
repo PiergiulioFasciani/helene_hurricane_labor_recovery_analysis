@@ -120,7 +120,7 @@ void mc_fit_joint_only()
     real colvector w, fit, lamgrid, scores, ds, sy, active, ddidx, which, obs
     real colvector wb, fitb, actb, wa, wba, icpt, icptb
     real matrix bddiag
-    real scalar N, nn, n, nt, u, o, j, k, q, r, best, chosen, selected
+    real scalar N, nn, n, nt, u, o, j, jb, k, q, r, best, chosen, selected
     real scalar mu, sd, floorv, maxit, tol, eff, lambda, jj
     dat = st_data(., tokens("mc_emp mc_lf mc_jobs mc_ur"))
     group = st_data(.,"mc_uid")
@@ -215,6 +215,10 @@ void mc_fit_joint_only()
     if (rows(ddidx)!=n) exit(459)
     j=st_addvar("double","mc_w_joint")
     st_store(ddidx,j,w)
+    // Backdated weights are stored too, so the event study can be refitted
+    // with a control that never saw Jan-Aug 2024 (stage 04d).
+    jb=st_addvar("double","mc_w_joint_bd")
+    st_store(ddidx,jb,wb)
     st_matrix("MC_CV",cv)
     st_matrix("MC_FITS",fitdiag)
     // Synthetic paths INCLUDE the fitted intercept: the definitive path is
@@ -256,9 +260,11 @@ mata: mc_fit_joint_only()
 
 preserve
     keep if mc_donor==1 & mc_step==32
-    keep fips mc_w_joint
+    keep fips mc_w_joint mc_w_joint_bd
     isid fips
     quietly summarize mc_w_joint, meanonly
+    assert abs(r(sum)-1)<0.00001
+    quietly summarize mc_w_joint_bd, meanonly
     assert abs(r(sum)-1)<0.00001
     assert inrange(mc_w_joint,0,1)
     save "${MC_OUT}/data/02_donor_weights.dta", replace
@@ -309,12 +315,15 @@ preserve
     save "${MC_OUT}/data/02_paths.dta", replace
     export delimited using "${MC_OUT}/tables/monthly_paths.csv", replace
 restore
-* One common fitted weight for ALL six matched outcomes.
-drop mc_w_joint
+* One common fitted weight for ALL six matched outcomes, plus the backdated
+* vector (2022-23 fit) carried alongside it for the stage-04d robustness refit.
+drop mc_w_joint mc_w_joint_bd
 merge m:1 fips using "${MC_OUT}/data/02_donor_weights.dta", ///
     keep(master match) nogen
 replace mc_w_joint=0 if treated_nc==1
+replace mc_w_joint_bd=0 if treated_nc==1
 assert !missing(mc_w_joint) if mc_donor==1
+assert !missing(mc_w_joint_bd) if mc_donor==1
 isid fips mdate
 save "${MC_OUT}/data/02_weighted_county_month.dta", replace
 di as result "02 complete: one four-outcome synthetic-DiD weight vector (full pre-event fit, intercept)."

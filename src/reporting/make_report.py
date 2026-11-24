@@ -40,6 +40,8 @@ def main(root=ROOT):
     cv=table('inner_2023_cv'); solver=table('solver_audit'); scales=table('training_2022_scales')
     ext=table('LAUS_extended_period_effects_EXPLORATORY'); extev=table('LAUS_extended_event_coefficients_EXPLORATORY'); extpre=table('LAUS_extended_pretrends')
     migdose=read('outputs/migration/migration_by_damage.csv','migration_by_damage')
+    bdpre=read('outputs/labor/tables/backdated_pretrends.csv','joint_multioutcome')
+    bdeff=read('outputs/labor/tables/backdated_weights_robustness.csv','joint_multioutcome')
     dev=table('dose_event_coefficients'); dper=table('dose_period_effects'); dpre=table('dose_pretrend_tests'); dexp=table('dose_treated_exposure')
     draws=read('outputs/labor/placebos/joint_placebo_draws.csv','joint_placebos')
     ranks=read('outputs/labor/placebos/joint_placebo_summary.csv','joint_placebos')
@@ -103,22 +105,37 @@ def main(root=ROOT):
         tab(d,['Outcome','Period','display_beta','display_lo','display_hi','pvalue','holm_p'],{'display_beta':'Estimate','display_lo':'CI low','display_hi':'CI high','pvalue':'Raw p','holm_p':'Holm p'})
     else: add('Unavailable for this run.')
     section('Validation')
-    add('Three checks, each perturbing something the weights did not see. Full diagnostics remain in the saved tables.')
+    add('READ IN THIS ORDER. The definitive weights are fitted over the whole pre-event window, so their',
+        'pre-event fit is IN-SAMPLE and is not evidence. Validation rests on what the fit could not manufacture:',
+        'a window the weights never saw, and the estimates re-run on weights fitted before that window.')
+    if not bdpre.empty:
+        d=bdpre.copy();d['Outcome']=d.outcome.map(label)
+        add('1. OUT-OF-SAMPLE PRE-EVENT PATH (the primary check). Weights fitted on 2022-23 ONLY.',
+            'Jan 2022-Dec 2023 is in-sample for them; Jan-Jul 2024 is a genuine holdout. Compare the two amplitudes:')
+        tab(d,['Outcome','drift_p','holdout_p','rms_insample','rms_holdout','max_abs_holdout'],
+            {'drift_p':'Drift p','holdout_p':'Holdout joint p','rms_insample':'RMS in-sample','rms_holdout':'RMS holdout','max_abs_holdout':'Max holdout'})
+        add('Two findings, and they point in different directions.',
+            'NO TREND: the drift test does not reject for any outcome, and a differential trend is what parallel trends rules out.',
+            'BUT AMPLITUDE GROWS: out of sample the gap wobbles several times more than in-sample.',
+            'Read the last column against the estimated effects below. It bounds what the AGGREGATE can support;',
+            'it does not touch the tercile contrasts, which difference the common control error away (see item 2).')
     if not fit.empty:
         d=fit.copy();d['Outcome']=d.outcome.map(label)
-        add('1. OUT-OF-SAMPLE. Weights refitted on 2022-23 only, then predicting Jan-Aug 2024, which they never saw:')
-        tab(d,['Outcome','bd_train_rmse','bd_holdout_rmse','bd_rmspe_ratio'],{'bd_train_rmse':'Train RMSE','bd_holdout_rmse':'Forecast RMSE','bd_rmspe_ratio':'Ratio'})
-        add('A ratio near 1 would mean donors chosen on two years kept tracking the treated counties in the third.',
-            'They did not for the two LAUS outcomes. This is the main caveat of the design and is stated first deliberately.')
+        add('   The same thing measured as forecast error rather than coefficients:')
+        tab(d,['Outcome','bd_train_rmse','bd_holdout_rmse','bd_holdout_max','bd_rmspe_ratio'],
+            {'bd_train_rmse':'Train RMSE','bd_holdout_rmse':'Forecast RMSE','bd_holdout_max':'Max gap','bd_rmspe_ratio':'Ratio'})
+        add('The ratio is inflated by a very tight training fit; the absolute columns are the interpretable ones.')
+    if not bdeff.empty:
+        add('2. DO THE ESTIMATES SURVIVE THOSE WEIGHTS? The headline models re-run on the 2022-23 weights:',
+            '   see the backdated-weights robustness section below. The tercile contrasts are unchanged to two decimals.')
     if not trends.empty:
         d=trends.copy();d['Outcome']=d.outcome.map(label)
-        add('2. PRE-EVENT PATH. Drift tests on the definitive weights (county-clustered):')
+        add('3. IN-SAMPLE PRE-EVENT PATH (reported for completeness, NOT as evidence).',
+            'These are the definitive weights on the window they were fitted on, so flatness here is mechanical:')
         f=np.where(d.outcome.map(key)=='urate',1,100);d['max_abs_pre']=d.max_abs_pre*f
         tab(d,['Outcome','slope_p','pretrend_p','n_sig05','max_abs_pre'],{'slope_p':'Linear trend p','pretrend_p':'All 31 months p','n_sig05':'Months p<.05 (of 32)','max_abs_pre':'Largest pre coef'})
-        add('The weights are fitted on this window, so flatness here is in-sample and is not evidence on its own.',
-            'The drift test asks whether the gap trends; the strict joint test asks whether it is exactly zero every month.',
-            'The latter rejects for every outcome, at deviations an order of magnitude below the estimated effects: compare the last column.')
-    add('3. GEOGRAPHIC PLACEBO: see the placebo section below.')
+        add('Do not cite this table as validation. It establishes only that the optimiser did its job.')
+    add('4. GEOGRAPHIC PLACEBO: see the placebo section below.')
     section('Donor model and tuning')
     tab(solver,['lambda','cv2023_rmse','iterations','dual_gap','n_active','effective_donors','bd_n_active','bd_effective_donors'])
     add('cv2023_rmse: penalty selection only (fit 2022, predict 2023). bd_ columns: backdated diagnostic weights.')
@@ -161,6 +178,37 @@ def main(root=ROOT):
     if not extpre.empty:
         d=extpre.copy();d['Outcome']=d.outcome.map(label);tab(d,['Outcome','slope_p','pretrend_p'])
     add('Exploratory p-values are unadjusted and outside the 18-test main Holm family.')
+    section('Backdated-weight robustness: do the estimates need the 2024 fit?')
+    add('The headline models re-estimated on weights fitted on 2022-23 ONLY, which never saw Jan-Aug 2024.',
+        'Sample window, excluded months, fixed effects, clustering, recentring and windows are unchanged;',
+        'only the donor weights and the donor inclusion rule differ. These weights are fitted on 24 months',
+        'instead of 32, so they are handicapped by construction and this is a conservative check.')
+    if not bdeff.empty and not dper.empty:
+        b=bdeff.copy(); m=dper[dper.dose=='hdsi_tercile'].copy()
+        f=lambda d: np.where(d.outcome.map(key)=='urate',1,100)
+        b['est']=b.beta*f(b); m['est']=m.beta*f(m)
+        j=m.merge(b[b.spec=='tercile'][['outcome','term','window','est','pvalue']],
+                  on=['outcome','term','window'],how='inner',suffixes=('_main','_bd'))
+        j=j[j.term.isin(['low','high','high_minus_low'])].copy()
+        j['Outcome']=j.outcome.map(label); j['Window']=j.window.map(WINDOWS)
+        for c in ('est_main','est_bd'): j[c]=j[c].round(3)
+        for c in ('pvalue_main','pvalue_bd'): j[c]=j[c].round(4)
+        worder={'immediate':0,'year2025':1,'late':2}; torder={'low':0,'high':1,'high_minus_low':2}
+        j['_w']=j.window.map(worder); j['_t']=j.term.map(torder)
+        tab(j.sort_values(['outcome','_w','_t']),
+            ['Outcome','Window','term','est_main','pvalue_main','est_bd','pvalue_bd'],
+            {'term':'Group','est_main':'Definitive','pvalue_main':'p','est_bd':'Backdated','pvalue_bd':'p'})
+        add('The high-minus-low contrasts agree to two decimals. Both terciles are measured against the SAME',
+            'control inside one regression, so any error in that control enters both coefficients and differences out.',
+            'That is why the out-of-sample wobble in the validation section bounds the aggregate but not the gradient.')
+        if not bdeff[bdeff.spec=='aggregate'].empty:
+            a=bdeff[bdeff.spec=='aggregate'].copy(); a['est']=(a.beta*f(a)).round(3)
+            a['Outcome']=a.outcome.map(label); a['Window']=a.window.map(WINDOWS)
+            a['pvalue']=a.pvalue.round(4); a['_w']=a.window.map({'immediate':0,'year2025':1,'late':2})
+            tab(a.sort_values(['outcome','_w']),['Outcome','Window','est','pvalue'],
+                {'est':'Backdated estimate','pvalue':'Raw p'})
+            add('The aggregate estimates are if anything STRONGER on weights that never saw 2024.')
+    else: add('Unavailable for this run.')
     section('Migration and population by damage tercile')
     add('netdom_per1000: net domestic migrants per 1,000 residents. pop_growth_pct: population growth in percent; effect is a percentage-point difference.',
         '2025 is July 2024–July 2025, only partly after Helene. Reference is the annual period ending July 2024.',

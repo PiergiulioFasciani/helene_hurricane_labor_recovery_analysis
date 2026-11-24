@@ -38,3 +38,12 @@ venv/
 *.log
 *.zip
 /work/
+
+# LaTeX build artifacts (the .tex source and the compiled .pdf are tracked)
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.toc
+*.synctex.gz
+*.tmp

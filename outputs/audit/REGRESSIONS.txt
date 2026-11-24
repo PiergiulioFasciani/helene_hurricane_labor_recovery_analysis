@@ -1,5 +1,5 @@
 HELENE PIPELINE -- REGRESSIONS AS ACTUALLY ESTIMATED
-Written by the estimation stages themselves on 20 Nov 2026 20:06:01.
+Written by the estimation stages themselves on 24 Nov 2026 23:30:33.
 Map and interpretation: docs/REGRESSIONS.md
 
 MODEL  04 joint / mc_yemp
@@ -254,6 +254,138 @@ MODEL  04c rain_tercile / mc_yshare
   fitted     N=       7,546  clusters=   154  df_r=   153
   reference  each tercile series recentred to its own 32-month pre-event mean; high-minus-low contrast taken with joint covariance
   writes     04c_dose_*.dta -> dose_event_coefficients.csv, dose_period_effects.csv
+
+MODEL  04d backdated / mc_yemp (aggregate)
+  command    areg mc_yemp <48 event indicators> i.mdate if <sample> [aw=<backdated weight>], absorb(county_id) vce(cluster county_id)
+  regressors 48 treated-by-event-month indicators, as in stage 04
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04, but donors are those with mc_w_joint_bd>1e-10
+  weights    treated=1/39; donor=mc_w_joint_bd, fitted on 2022-23 ONLY (never saw Jan-Aug 2024)
+  vce        cluster(county_id)
+  fitted     N=       8,036  clusters=   164  df_r=   163
+  reference  recentred to the 32-month pre-event mean, as in stage 04
+  writes     04d_backdated_period_effects.dta -> backdated_weights_robustness.csv
+
+MODEL  04d backdated / mc_yemp (hdsi terciles)
+  command    areg mc_yemp <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<backdated weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: stage-04d indicators split three ways by HDSI tercile
+  absorbed   county_id (county fixed effects)
+  sample     identical to the aggregate model above
+  weights    treated=1/39; donor=mc_w_joint_bd, fitted on 2022-23 ONLY
+  vce        cluster(county_id)
+  fitted     N=       8,036  clusters=   164  df_r=   163
+  reference  each tercile recentred to its own 32-month pre-event mean; high-minus-low with joint covariance
+  writes     04d_backdated_period_effects.dta -> backdated_weights_robustness.csv
+
+MODEL  04d backdated / mc_ylf (aggregate)
+  command    areg mc_ylf <48 event indicators> i.mdate if <sample> [aw=<backdated weight>], absorb(county_id) vce(cluster county_id)
+  regressors 48 treated-by-event-month indicators, as in stage 04
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04, but donors are those with mc_w_joint_bd>1e-10
+  weights    treated=1/39; donor=mc_w_joint_bd, fitted on 2022-23 ONLY (never saw Jan-Aug 2024)
+  vce        cluster(county_id)
+  fitted     N=       8,036  clusters=   164  df_r=   163
+  reference  recentred to the 32-month pre-event mean, as in stage 04
+  writes     04d_backdated_period_effects.dta -> backdated_weights_robustness.csv
+
+MODEL  04d backdated / mc_ylf (hdsi terciles)
+  command    areg mc_ylf <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<backdated weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: stage-04d indicators split three ways by HDSI tercile
+  absorbed   county_id (county fixed effects)
+  sample     identical to the aggregate model above
+  weights    treated=1/39; donor=mc_w_joint_bd, fitted on 2022-23 ONLY
+  vce        cluster(county_id)
+  fitted     N=       8,036  clusters=   164  df_r=   163
+  reference  each tercile recentred to its own 32-month pre-event mean; high-minus-low with joint covariance
+  writes     04d_backdated_period_effects.dta -> backdated_weights_robustness.csv
+
+MODEL  04d backdated / mc_yjobs (aggregate)
+  command    areg mc_yjobs <48 event indicators> i.mdate if <sample> [aw=<backdated weight>], absorb(county_id) vce(cluster county_id)
+  regressors 48 treated-by-event-month indicators, as in stage 04
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04, but donors are those with mc_w_joint_bd>1e-10
+  weights    treated=1/39; donor=mc_w_joint_bd, fitted on 2022-23 ONLY (never saw Jan-Aug 2024)
+  vce        cluster(county_id)
+  fitted     N=       8,036  clusters=   164  df_r=   163
+  reference  recentred to the 32-month pre-event mean, as in stage 04
+  writes     04d_backdated_period_effects.dta -> backdated_weights_robustness.csv
+
+MODEL  04d backdated / mc_yjobs (hdsi terciles)
+  command    areg mc_yjobs <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<backdated weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: stage-04d indicators split three ways by HDSI tercile
+  absorbed   county_id (county fixed effects)
+  sample     identical to the aggregate model above
+  weights    treated=1/39; donor=mc_w_joint_bd, fitted on 2022-23 ONLY
+  vce        cluster(county_id)
+  fitted     N=       8,036  clusters=   164  df_r=   163
+  reference  each tercile recentred to its own 32-month pre-event mean; high-minus-low with joint covariance
+  writes     04d_backdated_period_effects.dta -> backdated_weights_robustness.csv
+
+MODEL  04d backdated / mc_yurate (aggregate)
+  command    areg mc_yurate <48 event indicators> i.mdate if <sample> [aw=<backdated weight>], absorb(county_id) vce(cluster county_id)
+  regressors 48 treated-by-event-month indicators, as in stage 04
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04, but donors are those with mc_w_joint_bd>1e-10
+  weights    treated=1/39; donor=mc_w_joint_bd, fitted on 2022-23 ONLY (never saw Jan-Aug 2024)
+  vce        cluster(county_id)
+  fitted     N=       8,036  clusters=   164  df_r=   163
+  reference  recentred to the 32-month pre-event mean, as in stage 04
+  writes     04d_backdated_period_effects.dta -> backdated_weights_robustness.csv
+
+MODEL  04d backdated / mc_yurate (hdsi terciles)
+  command    areg mc_yurate <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<backdated weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: stage-04d indicators split three ways by HDSI tercile
+  absorbed   county_id (county fixed effects)
+  sample     identical to the aggregate model above
+  weights    treated=1/39; donor=mc_w_joint_bd, fitted on 2022-23 ONLY
+  vce        cluster(county_id)
+  fitted     N=       8,036  clusters=   164  df_r=   163
+  reference  each tercile recentred to its own 32-month pre-event mean; high-minus-low with joint covariance
+  writes     04d_backdated_period_effects.dta -> backdated_weights_robustness.csv
+
+MODEL  04d backdated / mc_ydiff (aggregate)
+  command    areg mc_ydiff <48 event indicators> i.mdate if <sample> [aw=<backdated weight>], absorb(county_id) vce(cluster county_id)
+  regressors 48 treated-by-event-month indicators, as in stage 04
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04, but donors are those with mc_w_joint_bd>1e-10
+  weights    treated=1/39; donor=mc_w_joint_bd, fitted on 2022-23 ONLY (never saw Jan-Aug 2024)
+  vce        cluster(county_id)
+  fitted     N=       8,036  clusters=   164  df_r=   163
+  reference  recentred to the 32-month pre-event mean, as in stage 04
+  writes     04d_backdated_period_effects.dta -> backdated_weights_robustness.csv
+
+MODEL  04d backdated / mc_ydiff (hdsi terciles)
+  command    areg mc_ydiff <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<backdated weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: stage-04d indicators split three ways by HDSI tercile
+  absorbed   county_id (county fixed effects)
+  sample     identical to the aggregate model above
+  weights    treated=1/39; donor=mc_w_joint_bd, fitted on 2022-23 ONLY
+  vce        cluster(county_id)
+  fitted     N=       8,036  clusters=   164  df_r=   163
+  reference  each tercile recentred to its own 32-month pre-event mean; high-minus-low with joint covariance
+  writes     04d_backdated_period_effects.dta -> backdated_weights_robustness.csv
+
+MODEL  04d backdated / mc_yshare (aggregate)
+  command    areg mc_yshare <48 event indicators> i.mdate if <sample> [aw=<backdated weight>], absorb(county_id) vce(cluster county_id)
+  regressors 48 treated-by-event-month indicators, as in stage 04
+  absorbed   county_id (county fixed effects)
+  sample     identical to stage 04, but donors are those with mc_w_joint_bd>1e-10
+  weights    treated=1/39; donor=mc_w_joint_bd, fitted on 2022-23 ONLY (never saw Jan-Aug 2024)
+  vce        cluster(county_id)
+  fitted     N=       8,036  clusters=   164  df_r=   163
+  reference  recentred to the 32-month pre-event mean, as in stage 04
+  writes     04d_backdated_period_effects.dta -> backdated_weights_robustness.csv
+
+MODEL  04d backdated / mc_yshare (hdsi terciles)
+  command    areg mc_yshare <144 tercile-by-event-month indicators> i.mdate if <sample> [aw=<backdated weight>], absorb(county_id) vce(cluster county_id)
+  regressors 144 regressors: stage-04d indicators split three ways by HDSI tercile
+  absorbed   county_id (county fixed effects)
+  sample     identical to the aggregate model above
+  weights    treated=1/39; donor=mc_w_joint_bd, fitted on 2022-23 ONLY
+  vce        cluster(county_id)
+  fitted     N=       8,036  clusters=   164  df_r=   163
+  reference  each tercile recentred to its own 32-month pre-event mean; high-minus-low with joint covariance
+  writes     04d_backdated_period_effects.dta -> backdated_weights_robustness.csv
 
 MODEL  02 migration / unwt / netdom_per1000 / pooled (all 39)
   command    areg netdom_per1000 dm_all_2021 dm_all_2022 dm_all_2023 dm_all_2025 i.year if dm_in_unwt==1 [aw=dm_w_unwt], absorb(demo_id) vce(cluster demo_id)

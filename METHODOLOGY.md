@@ -130,6 +130,21 @@ Implementation: `src/labor/steps/04_joint_event_study.do` and `05_tables_figures
 
 ## 6. Pre-event diagnostics
 
+**Ordering matters here.** The definitive weights are fitted over the whole
+pre-event window, so their pre-event fit is **in-sample and is not evidence**.
+It is reported for completeness only. The validation that carries weight is the
+out-of-sample pre-event path under the backdated weights (Section 8c), where
+January-August 2024 is a genuine holdout.
+
+That check splits into two findings that point in different directions. There
+is **no differential trend**: the drift test rejects for no outcome
+($p \ge 0.56$). But the **amplitude grows** out of sample: month-to-month
+tracking error rises roughly four- to five-fold, to about 0.4-1.0 log-% for
+employment and labor force. A trend is what parallel trends rules out, so the
+design survives; the amplitude bounds what the *aggregate* estimates can
+support, and leaves the tercile contrasts untouched, since both terciles are
+measured against the same control and the common error differences out.
+
 Two tests are reported per outcome, and they answer different questions.
 
 - **Drift.** A linear contrast across the 32 pre-event months. This is the test
@@ -197,6 +212,24 @@ Multiplicity: Holm is applied within this family, which sits outside the main
 
 Implementation and outputs: `src/labor/steps/04c_dose_event_study.do`;
 `outputs/labor/tables/dose_*.csv`; atlas pages `03b`-`03c`.
+
+## 8c. Backdated-weight robustness (added 22 November 2026)
+
+The definitive weights are fitted over the whole pre-event window, so their
+pre-event fit is in-sample and the Section 6 audit can only test the fitting
+procedure rather than the weights in use. Stage `04d` closes that gap: it
+re-estimates both the main event study and the HDSI-tercile contrast using
+`mc_w_joint_bd`, the vector fitted on 2022-2023 only, which never saw
+January-August 2024. Sample, excluded months, fixed effects, clustering,
+recentring and windows are identical; only the donor weights and the donor
+inclusion rule change.
+
+The backdated weights are fitted on 24 months rather than 32 and are therefore
+handicapped by construction, so this is a conservative check. Results are
+reported in `outputs/labor/tables/backdated_weights_robustness.csv` as a
+robustness column, never as a replacement for the primary estimates.
+
+Implementation: `src/labor/steps/04d_backdated_weights_robustness.do`.
 
 ## 9. Annual migration and population comparison
 

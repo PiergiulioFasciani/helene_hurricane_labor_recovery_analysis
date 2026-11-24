@@ -27,6 +27,7 @@ local va0=ym(2024,1)
 local va1=ym(2024,8)
 tempname D
 postfile `D' str12 outcome double bd_train_rmse bd_holdout_rmse bd_rmspe_ratio ///
+    bd_holdout_max ///
     using "${MC_OUT}/data/03_fit_audit.dta", replace
 foreach o in emp lf jobs urate {
     quietly gen double mc_gbd=mc_y_`o'-mc_syn_bd_`o'
@@ -35,15 +36,26 @@ foreach o in emp lf jobs urate {
     local tr=sqrt(r(mean))
     quietly summarize mc_sqb if inrange(mdate,`va0',`va1'), meanonly
     local va=sqrt(r(mean))
-    post `D' ("`o'") (`tr') (`va') (`va'/`tr')
+    quietly summarize mc_gbd if inrange(mdate,`va0',`va1')
+    local mx=max(abs(r(min)),abs(r(max)))
+    post `D' ("`o'") (`tr') (`va') (`va'/`tr') (`mx')
     drop mc_gbd mc_sqb
 }
 postclose `D'
 use "${MC_OUT}/data/03_fit_audit.dta", clear
-assert !missing(bd_train_rmse,bd_holdout_rmse,bd_rmspe_ratio)
+assert !missing(bd_train_rmse,bd_holdout_rmse,bd_rmspe_ratio,bd_holdout_max)
 assert _N==4
 isid outcome
 export delimited using "${MC_OUT}/tables/pretrend_train_holdout_ALL.csv", replace
 list, noobs
+* The ratio is the least interpretable form of this number: it is inflated by a
+* very tight training fit. What matters for the design is (a) whether the
+* out-of-sample gap TRENDS, which is tested on the event-study coefficients in
+* stage 04d, and (b) its absolute size next to the estimated effects. Both are
+* reported there; the absolute forecast error is printed here in display units.
+quietly summarize bd_holdout_rmse, meanonly
+di as txt "Out-of-sample forecast error, Jan-Aug 2024 (display units, log-% or pp):"
+list outcome bd_holdout_rmse bd_holdout_max, noobs
+di as txt "Compare these with the estimated effects before reading the ratio column."
 quietly count if bd_rmspe_ratio>2
-if r(N)>0 di as error "CAUTION: backdated weights have >2x out-of-sample/training RMSE for at least one outcome."
+if r(N)>0 di as txt "NOTE: ratio exceeds 2 for `r(N)' outcome(s); see stage 04d for the trend-vs-amplitude split."

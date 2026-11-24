@@ -1,0 +1,709 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage[hidelinks]{hyperref}
+\usepackage{titlesec}
+
+\definecolor{slate}{HTML}{203040}
+\definecolor{accent}{HTML}{176B91}
+\definecolor{warn}{HTML}{B2560D}
+\tcbset{
+  notebox/.style={colback=accent!4,colframe=accent!60,boxrule=.6pt,
+    left=6pt,right=6pt,top=5pt,bottom=5pt,fonttitle=\bfseries\small},
+  warnbox/.style={colback=warn!5,colframe=warn!65,boxrule=.6pt,
+    left=6pt,right=6pt,top=5pt,bottom=5pt,fonttitle=\bfseries\small}
+}
+\newcommand{\caution}[2]{\begin{tcolorbox}[warnbox,title={#1}]#2\end{tcolorbox}}
+\newcommand{\notebx}[2]{\begin{tcolorbox}[notebox,title={#1}]#2\end{tcolorbox}}
+\newcommand{\file}[1]{\texttt{\small #1}}
+\titleformat{\section}{\large\bfseries\color{slate}}{\thesection}{.6em}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{slate}}{\thesubsection}{.6em}{}
+
+\title{\textbf{Hurricane Helene and County Labor Markets}\\[.3em]
+\large Data Construction and Estimation: A Complete Procedural Note}
+\author{Piergiulio Fasciani}
+\date{22 November 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent This note documents every procedure that stands between the raw
+published records and the reported estimates: how each source is downloaded,
+validated, filtered and merged; how the treated roster and the donor universe
+are fixed; how the synthetic comparison is fitted; and the exact form of each
+of the five regressions in the project. It is written to be read alongside the
+code, and every rule stated here corresponds to a line in a named file. Where
+a procedure is a judgement call rather than a mechanical step, the note says so
+and gives the reasoning. Numerical values quoted are from the run of
+20 November 2026.
+\end{abstract}
+
+\tableofcontents
+\bigskip
+
+%=====================================================================
+\section{Scope and reading order}
+
+The pipeline has two halves, and they are kept strictly apart. The first builds
+a national county--month panel from raw published records and performs no
+estimation whatsoever. The second takes that panel as given and estimates. No
+stage in the first half ever sees an outcome regression, and no stage in the
+second half ever modifies the panel.
+
+\begin{center}
+\small
+\begin{tabular}{@{}lp{5.1cm}p{5.6cm}@{}}
+\toprule
+\textbf{Half} & \textbf{Stages} & \textbf{Produces} \\
+\midrule
+I. Construction & \file{src/preprocessing/01--07} & the $3{,}221\times57$ national panel \\
+II. Estimation  & \file{src/labor/steps/01--07}, \file{src/migration/} & weights, five regressions, placebos \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The separation is enforced, not merely intended: \file{tests/test\_source\_first.py}
+fails if an estimation artefact appears upstream, and stage 07 asserts the panel's
+exact dimensions before saving it.
+
+\notebx{The single most important convention}{%
+\textbf{A missing value is never turned into a zero, and never interpolated.}
+This recurs at every stage below. A county with no FEMA record is not a county
+with zero verified loss; a month with no LAUS release is not a month of zero
+employment. Each is held missing and the downstream filters decide what to do
+with it. Where a source supplies a value the project declines to use, that
+value is archived to an audit file rather than silently dropped.}
+
+%=====================================================================
+\part*{Part I --- Data construction and cleaning}
+\addcontentsline{toc}{section}{Part I --- Data construction and cleaning}
+
+\section{Sources}
+
+\begin{center}
+\small
+\begin{tabular}{@{}llp{6.1cm}@{}}
+\toprule
+\textbf{Source} & \textbf{Vintage} & \textbf{Role} \\
+\midrule
+NOAA nClimGrid-Daily & Sept.\ 2024 & county precipitation, 25--30 Sept.\ 2024 \\
+Census PEP           & 2024 & population denominator, county geography \\
+Census ACS 5-year    & 2023 & households, median home value, median income \\
+FEMA IHP valid registrations & v2, DR-4827--4832 & verified property and personal loss \\
+BLS LAUS             & 2022m1--2026m9 & employment, labor force, unemployment \\
+BLS QCEW             & 2022Q1--2026Q1 & workplace jobs, industry 10 \\
+Census Vintage 2025  & 2020--2025 & annual population and migration components \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\caution{The LAUS route is not a direct BLS download}{%
+The default ingestion route is \textbf{economicdata.dev}, an independent
+distributor of BLS series, not \texttt{download.bls.gov}. This is recorded in
+the build audit and is stated here because it is a dependency on a third party
+for a headline input. An official-flat-file route exists in
+\file{05\_labor.do} and is exercised by setting
+\texttt{H\_LAUS\_SOURCE\_MODE = "official"}; it is dormant by default. Both
+routes are validated against the same header contract before import.}
+
+\section{Stage 01 --- NOAA precipitation}
+
+Rainfall is the one exposure measure that contains no human reporting
+behaviour, which is why it is built first and kept separate from FEMA.
+
+\begin{enumerate}[leftmargin=1.3em,itemsep=2pt]
+\item The monthly county file is downloaded, or a cached copy confirmed. If
+      neither is available the stage exits with an error rather than
+      proceeding on partial data.
+\item Eight expected columns are confirmed by name before any parsing. A
+      missing column aborts the stage.
+\item County codes are stripped to digits and asserted to be exactly five
+      characters that parse as a number.
+\item \textbf{NOAA state prefixes are not Census FIPS.} NOAA uses its own
+      state numbering, so an explicit eleven-row crosswalk maps the NOAA
+      prefix to the Census state code; the county suffix is carried over and
+      the resulting FIPS is treated as a \emph{candidate} until it is
+      validated against the Census county name in stage 04.
+\item Daily values of $-999$ or below are the source's missing sentinel and
+      are set to missing.
+\item The six-day total is formed, and then
+      \textbf{set to missing unless all six daily values are present}. A
+      partial week is not a smaller storm.
+\end{enumerate}
+
+\noindent Output: \file{noaa\_11states.dta}, one row per county, plus an audit
+CSV of the candidate FIPS assignments.
+
+\section{Stage 02 --- Census population and covariates}
+
+Two independent pulls. The PEP file is filtered to \texttt{sumlev==50}
+(counties), restricted to the eleven study states, and its state and county
+codes are zero-padded to two and three characters before concatenation, which
+prevents the classic loss of leading zeros.
+
+The ACS pull goes through the Census API and is the one place where a silent
+failure would be most damaging, because an API error returns a readable HTML
+or JSON page that a CSV importer will happily parse into nonsense. The stage
+therefore \textbf{opens the file and inspects its first line} for the expected
+variable codes before importing it, and aborts if they are absent. Households,
+median home value and median household income are destrung and any
+non-positive value is set to missing.
+
+\section{Stage 03 --- FEMA verified losses}
+
+Six disaster declarations (DR-4827 through DR-4832) are queried at
+registration level and aggregated to counties. Required columns are confirmed
+per file. Real-property and personal-property verified loss are summed
+separately, and crucially each is accompanied by a count of non-missing
+contributing records; if a county contributed no observed value for a field,
+the summed total for that field is \textbf{restored to missing} rather than
+left at the zero that \texttt{collapse (sum)} would otherwise produce.
+
+\caution{What FEMA verified loss is, and is not}{%
+These are verified losses of households that \emph{applied} for Individuals
+and Households Program assistance. They are not total economic storm damage,
+and they embed application behaviour: propensity to apply varies with income,
+insurance coverage, tenure and awareness. Any exposure measure built on them
+inherits that selection. This is the motivation for reporting a rainfall-only
+tercile split as a robustness check in Part II.}
+
+\section{Stage 04 --- Reconciliation and the damage index}
+
+\subsection{Geographic validation}
+
+The NOAA file is merged to Census PEP. Two guards follow:
+
+\begin{itemize}[leftmargin=1.3em,itemsep=2pt]
+\item Any NOAA county that fails to match PEP is exported to an audit file and
+      the stage \textbf{stops}. An unmatched county is a crosswalk failure, not
+      a county to drop.
+\item County \emph{names} are normalised (lower-cased, punctuation and the
+      trailing word ``county'' removed) and compared. Disagreements are
+      exported for review. This is the check that converts the candidate FIPS
+      of stage 01 into a validated one: agreement of code \emph{and} name.
+\end{itemize}
+
+\subsection{The composite index}
+
+For counties with both a FEMA record and complete rainfall, economic burden is
+\[
+\text{burden}_i \;=\; 100\times\frac{\text{verified loss}_i}{\text{households}_i\times\text{median home value}_i},
+\]
+the denominator being a housing-value proxy. Rainfall and burden are converted
+to percentile rank scores on $[0,100]$ within the complete-case sample, and
+\[
+\mathrm{HDSI}_i \;=\; 0.4\times\text{rainfall score}_i \;+\; 0.6\times\text{burden score}_i .
+\]
+
+\caution{The 40/60 weighting is a judgement, and the index is descriptive}{%
+The weights are not estimated and no procedure in this project selects them.
+The index is used only to \emph{partition} already-treated counties into
+terciles; it never defines treatment, and no estimate is a function of the
+index's scale. The tercile split is therefore robust to any monotone
+re-weighting that preserves the ordering, which is weaker than defending
+$0.4/0.6$ itself. The rainfall-only split in Part II is reported precisely
+because it removes both the weighting choice and the FEMA behaviour.}
+
+\section{Stage 05 --- Labor data}
+
+\subsection{LAUS}
+
+Series are restricted to county records, parsed into the four measures
+(unemployment rate, unemployed, employed, labor force), reshaped wide and
+dated. The window is 2022m1--2026m9.
+
+\subsection{QCEW}
+
+Quarterly county files are filtered to the three codes that define total
+covered employment: ownership \texttt{0}, industry \texttt{10}, aggregation
+level \texttt{70}. The three monthly employment levels per quarter are kept and
+reshaped to a monthly series.
+
+\notebx{A deliberate defensive step}{%
+After filtering, the import \textbf{whitelists only four variables} and
+discards the thirty-plus other BLS fields, including \texttt{year} and
+\texttt{quarter}. Those two are then regenerated from the loop counters. The
+reason is that the generated period variables must be known-correct for every
+quarter rather than inherited from a field whose formatting BLS has changed
+across vintages.}
+
+\subsection{The complete calendar}
+
+A skeleton of every county crossed with all 57 months is constructed and the
+observed data merged onto it, so that \textbf{missingness is explicit rather
+than represented by an absent row}. The panel is asserted to be exactly
+$57\times3{,}221 = 183{,}597$ rows; a change in national county geography
+breaks the assertion rather than silently altering the donor universe.
+
+\subsection{October 2025}
+
+The CPS was not collected during the 2025 shutdown, so LAUS has no October 2025
+release. Some mirrors nonetheless carry values for that month. The stage:
+
+\begin{enumerate}[leftmargin=1.3em,itemsep=2pt]
+\item flags every row where a source supplied an October 2025 LAUS value;
+\item exports those rows to
+      \file{audits/LAUS\_Oct2025\_source\_values\_excluded.csv};
+\item sets all four LAUS measures to missing for that month and asserts it;
+\item leaves QCEW untouched, since workplace jobs are an independent
+      measurement unaffected by the CPS.
+\end{enumerate}
+
+\noindent October 2025 is consequently dropped from the estimation sample, and
+the corresponding event-time indicator ($k=13$) is never created.
+
+\section{Stage 06 --- Treatment and the donor universe}
+
+\subsection{The frozen roster}
+
+\begin{sloppypar}
+The 39 treated counties are read from a dated reference file,
+\file{treated\_NC\_county\_roster\_2026-11-13.csv}, asserted to contain
+exactly 39 unique FIPS, and merged on.
+\end{sloppypar} The roster is then \emph{compared} with the
+FEMA-positive North Carolina definition regenerated from the current data; a
+discrepancy stops the run when \texttt{STOP\_IF\_TREATMENT\_CHANGED} is set.
+
+The point is to make treatment immune to later FEMA revisions and to any
+reclassification that might occur after outcomes have been inspected. Treatment
+is observational and exposure-defined, and freezing it is what prevents that
+definition from drifting toward the results.
+
+\subsection{Geographic exclusions}
+
+Donors are excluded by state FIPS in three groups:
+
+\begin{center}
+\small
+\begin{tabular}{@{}lp{9.2cm}@{}}
+\toprule
+\textbf{Group} & \textbf{States} \\
+\midrule
+Impact region & AL, FL, GA, IL, IN, KY, NC, OH, SC, TN, VA, WV \\
+Buffer & AR, DC, IA, MD, MI, MS, MO, PA, WI \\
+Other 2024 hurricanes & LA, TX \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Coverage screening}
+
+A donor must additionally have all 24 months of January 2022--December 2023
+present and positive for employment, labor force and jobs, with a non-missing
+unemployment rate.
+
+\caution{Why the screen stops at December 2023}{%
+The screen deliberately uses only the 24 training months. January--August 2024
+is left untouched so that it remains a genuine holdout for the backdated audit
+in Part II. Screening donors on 2024 coverage would contaminate that test.
+Later outcomes never participate in donor selection.}
+
+\noindent The pipeline requires at least 500 eligible donors and exactly 39
+treated counties, and asserts both.
+
+\section{Stage 07 --- The final panel}
+
+Stage 07 adds event-time variables and re-asserts every invariant: dimensions,
+FIPS length, 57 months per county, 39 treated at the reference month, 24
+training months for every treated county, and that no county is both treated
+and an eligible donor. It performs no estimation. The audit files it writes
+record coverage by month and the full county-level treatment and donor
+assignment.
+
+%=====================================================================
+\part*{Part II --- Estimation}
+\addcontentsline{toc}{section}{Part II --- Estimation}
+
+\section{The treated aggregate and the transformations}
+
+The estimand is built on an \textbf{equal-county mean} of the 39 treated
+counties, not a population-weighted state aggregate. The four fitting outcomes
+are
+\[
+100\log(\text{employment}),\quad 100\log(\text{labor force}),\quad
+100\log(\text{jobs}),\quad \text{unemployment rate (pp)} .
+\]
+Each county series is centred on its own 2022 mean. Each outcome is then scaled
+by the treated aggregate's 2022 temporal standard deviation, subject to a floor
+of $0.25$ for the three log outcomes and $0.15$ for the unemployment rate. The
+realised scales were $0.915$, $0.804$, $1.644$ and $0.279$. The floors exist so
+that an outcome which happened to be unusually flat in 2022 cannot dominate the
+joint objective through a near-zero denominator.
+
+\section{The synthetic comparison}
+
+\subsection{Objective}
+
+For a fitting window of $T$ months and $K=4$ outcomes, with $y_{kt}$ the
+treated mean, $X_{ktj}$ donor $j$'s transformed outcome, $s_k$ the fixed scale
+and $u_j = 1/J$ the uniform vector:
+\[
+\min_{w,\,a}\;
+\frac{1}{2KT}\sum_{k,t}\left(\frac{y_{kt}-a_k-\sum_j X_{ktj}w_j}{s_k}\right)^{\!2}
+\;+\;\frac{\lambda}{2}\sum_j\left(w_j-u_j\right)^2
+\]
+subject to $w_j\ge 0$ and $\sum_j w_j = 1$.
+
+Two features deserve emphasis. The \textbf{outcome intercepts} $a_k$,
+implemented by demeaning each outcome block over the fitting window, mean the
+weights are fitted to pre-event \emph{movements} while a fixed treated/control
+level difference is permitted. The ridge shrinks toward the \textbf{uniform}
+vector rather than toward zero, which spreads weight across donors instead of
+discarding them; the realised fit places positive weight on 115 donors with an
+effective (inverse Herfindahl) count of $63.9$.
+
+\subsection{Penalty selection}
+
+$\lambda$ is chosen by fitting on 2022 and scoring on 2023 over the grid
+$\{0.03,0.1,0.3,1,3,10\}$, ties resolving toward stronger regularisation.
+
+\begin{center}
+\small
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+$\lambda$ & 0.03 & 0.1 & 0.3 & \textbf{1} & 3 & 10 \\
+\midrule
+2023 RMSE & .1543 & .1433 & .1236 & \textbf{.1094} & .1126 & .1198 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent $\lambda=1$ is selected. The definitive weights are then refitted
+with intercepts over the full pre-event window, January 2022--August 2024.
+
+\subsection{Solver}
+
+The problem is solved in Mata by accelerated projected gradient (FISTA) with
+Euclidean projection onto the simplex. The stopping rule is a genuine
+optimality certificate rather than a step-size heuristic: for the simplex, the
+duality gap
+\[
+\text{gap} \;=\; \max\!\left(0,\; g'w - \min_j g_j\right),
+\qquad g = (A'A + \lambda I)w - c,
+\]
+bounds the distance from the optimum, and the solver stops when it falls below
+$5\times10^{-5}$. The reported fit converged in 7{,}000 iterations with a gap
+of $1.9\times10^{-5}$.
+
+\subsection{What this is, and what it is not}
+
+The method uses synthetic-DiD-style \textbf{unit} weights, outcome intercepts
+and uniform pre-event time averaging. It does \textbf{not} estimate a separate
+synthetic-DiD time-weight vector. Describing it as the full canonical
+Arkhangelsky et al.\ estimator would overstate the implementation, and this
+note does not.
+
+\section{Validation of the comparison}
+
+\subsection{The backdated out-of-sample audit}
+
+Because the definitive weights are fitted over the entire pre-event window,
+their pre-event fit is \textbf{in-sample and is not evidence}. The one genuinely
+out-of-sample test refits the same objective with the same $\lambda$ on
+2022--2023 only, and asks those weights to predict January--August 2024, which
+they never saw.
+
+\begin{center}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+& employment & labor force & jobs & unemp.\ rate \\
+\midrule
+Training RMSE (2022--23) & 0.108 & 0.098 & 0.365 & 0.050 \\
+Forecast RMSE (2024m1--8) & 0.501 & 0.594 & 0.593 & 0.101 \\
+Ratio & \textbf{4.66} & \textbf{6.08} & 1.63 & 2.00 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\caution{This is the weakest result in the project and should be reported as such}{%
+The pipeline's own caution threshold is a ratio of $2$, and employment and
+labor force exceed it substantially. Two things should be said in mitigation,
+and neither should be presented as a dismissal. First, the ratio is inflated by
+a very tight training fit: in absolute terms a forecast error of $0.50$ log-\%
+is roughly a quarter of the estimated aggregate immediate effect and about a
+tenth of the high-tercile effect. Second, the degradation is informative in its
+own right --- it is direct evidence that the comparison deteriorates as the
+horizon lengthens, which is a reason to discount long-horizon estimates rather
+than a reason to discount the immediate ones.}
+
+\subsection{Pre-event tests}
+
+Two tests are reported per outcome and they answer different questions.
+
+\begin{itemize}[leftmargin=1.3em,itemsep=2pt]
+\item \textbf{Drift.} A linear contrast across the pre-event coefficients,
+      weighted by $k+16.5$ about the window midpoint. This is the test that
+      bears on identification. It rejects for no outcome
+      ($p \ge 0.84$ throughout).
+\item \textbf{Strict joint zero.} A joint test that all 31 free pre-event
+      coefficients are exactly zero. This rejects for every outcome, at
+      month-to-month deviations of order $0.05$--$0.15$ units against
+      estimated effects an order of magnitude larger. It is reported for
+      completeness, not as a screen.
+\end{itemize}
+
+\noindent Five of six outcomes have zero individually significant pre-event
+coefficients out of 32.
+
+\subsection{Geographic placebos}
+
+199 draws, seed 20261114. Each draw samples 39 eligible donors as a
+pseudo-treated group, removes them from their own donor pool, and refits the
+entire objective at the locked $\lambda$. The observed October--December 2024
+shock is compared with the pre-event mean gap, as for the real estimate.
+
+The observed shock is more extreme than \textbf{all 199 draws} for all four
+fitting outcomes.
+
+\caution{These are benchmarking ranks, not randomisation p-values}{%
+Treatment was not randomly assigned across these pseudo-groups. The ranks say
+that the observed movement is unusual relative to what geography and sampling
+alone produce; they do not license a randomisation-inference interpretation.}
+
+\section{The six regressions}
+
+Every estimate in the project comes from one of six regressions. Each one
+writes its own expanded specification --- command, regressors, sample, weights,
+clustering, and the realised $N$, cluster count and residual degrees of freedom
+--- to \file{outputs/audit/REGRESSIONS.txt} as it runs, so the record is
+generated by the code and cannot drift from it.
+
+\subsection{Shared structure}
+
+The three labor regressions are the same model with the treated indicators
+split differently:
+\[
+y_{it} \;=\; \alpha_i \;+\; \delta_t \;+\; \sum_{k\in\mathcal{K}} \beta_k\,
+\mathbf{1}[i\in\mathcal{T}]\cdot\mathbf{1}[t = t^\ast + k] \;+\; \varepsilon_{it},
+\]
+estimated by \texttt{areg} with county fixed effects $\alpha_i$ absorbed,
+calendar-month effects $\delta_t$, analytic weights, and standard errors
+clustered on county.
+
+\begin{center}
+\small
+\begin{tabular}{@{}lp{9.3cm}@{}}
+\toprule
+$t^\ast$ & September 2024 \\
+$\mathcal{K}$ & $\{-32,\dots,18\}\setminus\{-1,0,13\}$, giving \textbf{48} indicators \\
+weights & treated $1/39$; donor $\hat w_j$ from the fitted synthetic vector \\
+sample & treated counties, plus donors with $\hat w_j > 10^{-10}$ \\
+vce & \texttt{cluster(county\_id)}: 154 clusters, $df_r = 153$ \\
+fitted & $N = 7{,}546$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Three event months carry no indicator, for three different reasons:
+$k=-1$ (August 2024) is the omitted category that parameterises the model;
+$k=0$ (September 2024) is the storm month and is dropped from the sample as a
+transition month; $k=13$ (October 2025) has no LAUS data.
+
+\subsection{The reference is not August 2024}
+
+This is the single most misread feature of the specification. The omitted month
+only parameterises the regression. Every reported coefficient is recentred to
+the mean of all 32 pre-event months by a linear combination taken with its
+joint covariance:
+\[
+\tilde\beta_k \;=\; \beta_k \;-\; \frac{1}{32}\sum_{m=-32}^{-1}\beta_m ,
+\qquad \beta_{-1}\equiv 0 .
+\]
+A reported coefficient therefore answers ``relative to the typical pre-storm
+gap'', not ``relative to August 2024''. The same recentring is applied
+separately within each damage tercile.
+
+\subsection{Regression 1 --- Main event study}
+
+Six outcomes, one model each. Period effects average the recentred event
+coefficients over three windows: immediate (2024m10--12), 2025 (2025m1--9) and
+late matched (2025m11--2026m3). The two ratio outcomes, jobs/employment and
+employment/labor force, are differences of log outcomes and are internally
+consistent because all six share one donor weight vector.
+
+These $6\times3=18$ estimates form the \textbf{main Holm family}.
+\file{04\_joint\_event\_study.do}.
+
+\subsection{Regression 2 --- Damage terciles}
+
+Identical sample, weights, fixed effects, clustering and reference. The only
+change is that each treated-by-event-month indicator is split three ways by
+exposure tercile, 13 treated counties each, giving $3\times48=144$ regressors.
+
+Because all three terciles sit in \textbf{one} regression, the high-minus-low
+contrast is taken with the joint covariance rather than by differencing two
+separately estimated models.
+
+\begin{itemize}[leftmargin=1.3em,itemsep=2pt]
+\item \textbf{Primary:} terciles of the composite HDSI.
+\item \textbf{Robustness:} terciles of six-day rainfall alone, which contains
+      no FEMA claim behaviour. Reported as a footnote comparison.
+\end{itemize}
+
+Each tercile effect is an ATT for that exposure group against never-treated
+donors, so it requires only the parallel-trends assumption of Regression 1
+applied within the group.
+
+\caution{Exposure is not randomly assigned}{%
+Damage correlates with terrain, income, industry mix and housing stock. The
+high-minus-low contrast compares differently exposed counties; it is not a
+randomised dose. The defensible claim is that the effect is graded in damage,
+not that a marginal unit of damage causes a marginal unit of job loss.}
+
+\file{04c\_dose\_event\_study.do}.
+
+\subsection{Regression 3 --- Extended LAUS}
+
+The same design carried to September 2026 on LAUS alone, past the point where
+QCEW can match it. Five outcomes. Exploratory, and outside the main Holm
+family. \file{04b\_extended\_laus.do}.
+
+\subsection{Regressions 4 and 5 --- Migration}
+
+A different panel: annual, July-to-July, county and year effects, clustered on
+county.
+\[
+m_{cy} \;=\; \alpha_c \;+\; \delta_y \;+\; \sum_{y\neq 2024}\gamma_y\,
+\mathbf{1}[c\in\mathcal{T}]\cdot\mathbf{1}[\text{year}=y] \;+\; u_{cy},
+\qquad y \in \{2021,\dots,2025\}.
+\]
+2024 is the omitted last unexposed year and the reported effect is the 2025
+coefficient; 2021--2023 serve as pre-tests. Regression 4 pools the 39 treated
+counties; Regression 5 splits them by HDSI tercile in a single regression.
+
+Two weighting schemes are estimated. The unweighted scheme compares eligible
+counties equally; the synthetic scheme gives donors the fitted labor weights.
+The \textbf{synthetic scheme is primary}, because the unweighted scheme fails
+its pre-test for the two less-damaged terciles while the synthetic scheme
+passes for all three.
+
+\caution{Migration is an outcome, never a control}{%
+Migration is realised after the storm. Conditioning on it would be a bad
+control in the sense of Angrist and Pischke: it would absorb precisely the
+adjustment channel the paper is about, and would bias the labor coefficients by
+selecting on a post-treatment variable. It therefore appears only on the
+left-hand side.}
+
+\caution{A negative contrast is slower in-migration, not depopulation}{%
+The treated counties are high-amenity net in-migration counties. Their net
+domestic migration runs $12.3 \to 12.4 \to 12.0 \to 10.7 \to 8.2$ per 1{,}000
+across 2021--2025, against roughly $0$--$5$ for the comparison group, and
+population growth remains positive. A negative estimated contrast means these
+counties attracted fewer new residents than they otherwise would have. They did
+not depopulate, and the paper must not say they did.}
+
+\file{src/migration/01\_census\_v2025.do}, \file{02\_migration\_dose.do}.
+
+\subsection{Regression 6 --- Backdated-weight robustness}
+
+The audit of Section 9.1 tests the fitting \emph{procedure}; it cannot test the
+weights actually used, because those are fitted over the whole pre-event window
+by construction. This regression closes that gap directly. It re-estimates both
+Regression 1 and the tercile contrast of Regression 2 using the weight vector
+fitted on \textbf{2022--2023 only}, which never saw January--August 2024.
+Sample window, excluded months, fixed effects, clustering, recentring and the
+three windows are unchanged; only the donor weights and the donor inclusion
+rule differ.
+
+The backdated weights are fitted on 24 months rather than 32 and are therefore
+handicapped by construction, which makes this a conservative check.
+
+\begin{center}
+\small
+\begin{tabular}{@{}llcccc@{}}
+\toprule
+& & \multicolumn{2}{c}{\textbf{Definitive (32m)}} & \multicolumn{2}{c}{\textbf{Backdated (24m)}} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+Outcome & Group & est. & $p$ & est. & $p$ \\
+\midrule
+\multicolumn{6}{@{}l}{\emph{Immediate window, 2024m10--12}}\\
+Employment & low            & $-0.01$ & .992 & $-0.12$ & .889 \\
+           & high           & $-4.27$ & .000 & $-4.38$ & .000 \\
+           & high $-$ low   & $-4.26$ & .000 & $-4.26$ & .000 \\
+Unemp.\ rate & high $-$ low & $+2.57$ & .000 & $+2.57$ & .000 \\
+Emp/LF     & high $-$ low   & $-2.73$ & .000 & $-2.73$ & .000 \\
+\multicolumn{6}{@{}l}{\emph{2025 window, 2025m1--9}}\\
+Unemp.\ rate & high $-$ low & $+0.74$ & .000 & $+0.74$ & .000 \\
+Emp/LF     & high $-$ low   & $-0.77$ & .000 & $-0.77$ & .000 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\notebx{Why the contrasts barely move}{%
+The high-minus-low contrast compares two treated groups against the
+\emph{same} synthetic control, inside a single regression. Error in that
+control enters both tercile coefficients and differences out. The contrasts are
+therefore nearly invariant to which weight vector is used --- they agree to two
+decimals --- while the individual tercile \emph{levels} do shift slightly. The
+backdated audit's unflattering ratios bear on the aggregate ATT, not on the
+damage gradient.}
+
+\file{04d\_backdated\_weights\_robustness.do}.
+
+\section{Inference}
+
+\subsection{Clustering}
+
+Standard errors are clustered on county throughout: 154 clusters in the labor
+regressions, $df_r = 153$. Reported 95\% intervals use the $t$ critical value
+at those degrees of freedom and are \emph{individual} intervals, not
+simultaneous bands.
+
+\subsection{Multiplicity}
+
+Holm's step-down procedure is applied within each family. The main family is
+the 18 outcome--window combinations of Regression 1; the tercile contrasts form
+their own family; the extended-horizon estimates are outside both and are
+labelled exploratory.
+
+Raw and adjusted $p$-values are both retained in the output tables, so the
+reader can apply whichever standard they prefer rather than being handed only
+one.
+
+\caution{The tests within a family are not independent}{%
+Six outcomes computed from four underlying series cannot be independent: two of
+them are exact identities of the others, so the correlation matrix of the six
+has rank four. Holm is valid under arbitrary dependence, so it remains correct,
+but it is conservative here --- it is controlling for 18 tests when the
+effective number is smaller. This is an argument for reporting both raw and
+adjusted values, which the pipeline does.}
+
+\section{Reproducibility and audit}
+
+\begin{itemize}[leftmargin=1.3em,itemsep=2pt]
+\item \file{run\_all.do} builds everything from raw sources;
+      \file{rerun\_estimation\_only.do} refits without rebuilding.
+\item \file{outputs/audit/STAGE\_STATUS.csv} gates result families in the
+      report. A file existing does not establish that its stage succeeded.
+\item \file{outputs/audit/REGRESSIONS.txt} is regenerated on every run by the
+      estimation stages themselves and records each fitted specification.
+\item \file{SHA256SUMS.txt} pins the source files; raw-source hashes are kept
+      separately.
+\item Four offline checks run in CI on every push.
+\item The readable report and chart atlas transform presentation only; they
+      never recalculate weights, regressions or placebo fits.
+\end{itemize}
+
+\section{Scope of inference}
+
+The design is observational and was revised after earlier outcomes had been
+inspected. It is not preregistered, and fixed rosters and reproducible code do
+not by themselves establish causal identification.
+
+County clustering does not fully address correlated regional shocks or the
+uncertainty introduced by estimating the donor weights, which is treated as
+fixed at the inference stage. Geographic exclusion reduces but cannot eliminate
+spillovers: commuting zones cross county and state lines. Source releases
+revise, so the raw snapshots should be preserved for replication. Migration,
+extended-horizon and damage-tercile estimates are exploratory relative to the
+main family.
+
+\end{document}

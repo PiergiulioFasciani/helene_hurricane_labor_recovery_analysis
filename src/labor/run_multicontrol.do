@@ -38,6 +38,7 @@ do "steps/03_prefit_and_backdated_audit.do"
 do "steps/04_joint_event_study.do"
 do "steps/04b_extended_laus.do"
 do "steps/04c_dose_event_study.do"
+do "steps/04d_backdated_weights_robustness.do"
 do "steps/05_tables_figures.do"
 
 di as result "COMPLETE. Results: ${MC_OUT}/"

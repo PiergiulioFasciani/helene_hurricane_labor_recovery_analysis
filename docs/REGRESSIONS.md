@@ -1,6 +1,6 @@
 # How the regressions actually run
 
-Every estimate in this project comes from one of **five** regressions. This
+Every estimate in this project comes from one of **six** regressions. This
 file is the map; `outputs/audit/REGRESSIONS.txt` is the receipt, written by the
 estimation stages themselves on each run, so it reports what Stata executed
 rather than what a comment claims. If the two ever disagree, the receipt is
@@ -63,6 +63,7 @@ drift, not of level.
 | 3 | **Extended LAUS** | `src/labor/steps/04b_extended_laus.do` | 5 outcomes, exploratory | `LAUS_extended_*_EXPLORATORY.csv` |
 | 4 | **Migration, pooled** | `src/migration/02_migration_dose.do` | 2 outcomes x 2 schemes | `migration_by_damage.csv` (`group = all`) |
 | 5 | **Migration, by tercile** | `src/migration/02_migration_dose.do` | 2 outcomes x 2 schemes | `migration_by_damage.csv` (`group = low/mid/high/hi-lo`) |
+| 6 | **Backdated-weight robustness** | `src/labor/steps/04d_backdated_weights_robustness.do` | 6 outcomes x 2 (aggregate, terciles) | `backdated_weights_robustness.csv` |
 
 ### 1. Main event study
 
@@ -104,6 +105,27 @@ less-damaged terciles.
 Migration is an **outcome**, never a control. It is realised after the storm,
 so conditioning on it would be a bad control and would remove the channel under
 study.
+
+### 6. Backdated-weight robustness
+
+Stages 1 and 2 re-estimated on `mc_w_joint_bd`, the weight vector fitted on
+**2022-2023 only**, which never saw January-August 2024. Sample window,
+excluded months, fixed effects, clustering, recentring and windows are
+unchanged; only the donor weights and the donor inclusion rule differ.
+
+This exists because the definitive weights are fitted over the whole pre-event
+window, so their pre-event fit is in-sample and the backdated audit in stage 03
+can only test the fitting *procedure*. This stage tests the *estimates*: do
+they survive a control that could not have been tuned to the pre-storm year?
+
+It also emits the project's primary validation statistic: pre-event
+coefficients split into the window these weights were fitted on (2022-23) and
+the window they were not (Jan-Jul 2024), written to
+`backdated_pretrends.csv`. No differential trend appears out of sample; the
+tracking amplitude grows.
+
+Read the effect estimates as a robustness column, not a replacement. The backdated weights are
+fitted on 24 months instead of 32 and are handicapped by construction.
 
 ## Reading the receipt
 
